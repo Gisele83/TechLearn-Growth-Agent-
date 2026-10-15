@@ -1,0 +1,223 @@
+# PROPOSITION DE CONTRAT — AUCUN DE CES ENDPOINTS N'EXISTE.
+#
+# Ce fichier décrit ce que Growth Agent aimerait pouvoir lire chez Maintrix et
+# EduCore pour suivre les pilotes et les licences. Il est fourni comme base de
+# discussion, pas comme une spécification à implémenter.
+#
+# Aucune écriture n'est prévue, et aucune ne doit être ajoutée : Growth Agent
+# ne modifie jamais les plateformes produits.
+#
+# Voir docs/11-dependances-autorisation.md, dépendance D1.
+
+openapi: 3.1.0
+
+info:
+  title: Contrat de lecture Growth Agent (proposition)
+  version: 0.1.0-proposition
+  description: |
+    Interface **en lecture seule** permettant à TechLearn Growth Agent de
+    suivre l'avancement commercial des pilotes et des licences.
+
+    Principes retenus :
+
+    * **Minimisation.** Seuls quatre types d'événements et une poignée de
+      champs. Rien sur les élèves, les familles, le personnel, les
+      équipements ou les incidents.
+    * **Référence opaque.** `organization_ref` est un identifiant choisi par
+      la plateforme. Growth Agent n'a pas à connaître sa structure interne.
+    * **Partage explicite.** Un retour de pilote n'est transmis que s'il
+      porte `shareable: true`.
+    * **Idempotence.** Chaque événement a un identifiant stable ; le rejouer
+      ne crée pas de doublon côté Growth Agent.
+
+servers:
+  - url: https://{host}
+    description: À définir par la plateforme concernée
+    variables:
+      host:
+        default: exemple.invalid
+
+security:
+  - bearerAuth: []
+
+paths:
+  /growth/v1/health:
+    get:
+      summary: Disponibilité du service
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Service disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok, degraded] }
+                required: [status]
+
+  /growth/v1/events:
+    get:
+      summary: Événements de pilote et de licence
+      operationId: listEvents
+      description: |
+        Renvoie les événements survenus après `since`, du plus ancien au plus
+        récent. Un appelant qui a perdu des événements peut rattraper son
+        retard en reculant `since` ; les identifiants garantissent l'absence
+        de doublon.
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+          description: Borne inférieure exclusive (ISO 8601, UTC)
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        "200":
+          description: Liste d'événements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProductEvent" }
+                required: [events]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /growth/v1/organizations/{organization_ref}/status:
+    get:
+      summary: État courant d'une organisation
+      operationId: getOrganizationStatus
+      parameters:
+        - name: organization_ref
+          in: path
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        "200":
+          description: État de l'organisation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrganizationStatus" }
+        "404":
+          description: Organisation inconnue de la plateforme
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Jeton de service à portée **lecture seule**, propre à Growth Agent,
+        révocable indépendamment des autres accès.
+
+  responses:
+    Unauthorized:
+      description: Jeton absent, invalide ou révoqué
+    RateLimited:
+      description: Quota atteint
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Délai avant nouvelle tentative, en secondes
+
+  schemas:
+    ProductEvent:
+      type: object
+      required: [id, type, organization_ref, occurred_at]
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          description: Identifiant stable, utilisé pour l'idempotence
+        type:
+          type: string
+          enum:
+            - pilot.invited
+            - pilot.activated
+            - pilot.feedback_received
+            - license.status_changed
+        organization_ref:
+          type: string
+          maxLength: 128
+          description: Référence opaque, stable dans le temps
+        occurred_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          maxLength: 32
+        data:
+          $ref: "#/components/schemas/EventData"
+
+    EventData:
+      type: object
+      description: |
+        Charge utile restreinte. Tout champ absent de cette liste est écarté
+        par Growth Agent à la réception, sans être stocké.
+      additionalProperties: false
+      properties:
+        shareable:
+          type: boolean
+          description: Un retour n'est exploité que si ce champ vaut true
+        comment:
+          type: string
+          maxLength: 2000
+        plan:
+          type: string
+          maxLength: 64
+        seats:
+          type: integer
+          minimum: 0
+        renewal_date:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          maxLength: 256
+        locale:
+          type: string
+          maxLength: 16
+
+    OrganizationStatus:
+      type: object
+      required: [pilot_status, license_status]
+      properties:
+        pilot_status:
+          type: string
+          enum: [not_invited, invited, active, completed, abandoned]
+        license_status:
+          type: string
+          enum: [none, trial, active, suspended, expired]
+        renewal_date:
+          type: string
+          format: date-time
+          nullable: true
+        last_activity_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Date de dernière activité, sans aucun détail sur sa nature.
+        shareable_feedback:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 2000 }
+
+  # --- Webhook optionnel -----------------------------------------------------
+  # Alternative à l'interrogation périodique. La signature évite qu'un tiers
+  # puisse injecter de faux événements.
+  #
+  #   X-Growth-Timestamp : horodatage Unix de l'émission
+  #   X-Growth-Signature : HMAC-SHA256(secret, "<timestamp>.<corps>"), en hexadécimal
+  #
+  # Growth Agent rejette toute requête dont l'horodatage s'écarte de plus de
+  # 300 secondes (protection contre le rejeu) ou dont la signature ne
+  # correspond pas. Voir connectors/product/webhooks.py et ses tests.

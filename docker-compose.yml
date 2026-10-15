@@ -1,0 +1,104 @@
+# Développement LOCAL uniquement.
+#
+# Ce fichier ne décrit AUCUN déploiement. Il ne contient ni domaine, ni
+# certificat, ni volume de production, et n'expose les ports que sur la boucle
+# locale (127.0.0.1) pour qu'aucun service ne soit joignable depuis le réseau.
+#
+# Le dossier de déploiement, préparé mais NON exécuté, est dans
+# docs/09-dossier-deploiement.md.
+
+name: growth-agent-local
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: growth
+      POSTGRES_PASSWORD: growth_local_only
+      POSTGRES_DB: growth_agent
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - growth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U growth -d growth_agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      GA_ENVIRONMENT: local
+      GA_DEBUG: "true"
+      GA_DATABASE_URL: postgresql+psycopg://growth:growth_local_only@db:5432/growth_agent
+      GA_REDIS_URL: redis://redis:6379/0
+      GA_CORS_ORIGINS: http://localhost:5173
+      # Tous les connecteurs restent simulés : aucun appel sortant, aucun coût,
+      # aucun risque d'envoyer un message par inadvertance.
+      GA_CRM_PROVIDER: mock
+      GA_LLM_PROVIDER: mock
+      GA_SEARCH_PROVIDER: mock
+      GA_EMAIL_PROVIDER: mock
+      GA_EMAIL_SENDING_ENABLED: "false"
+      GA_MAINTRIX_ADAPTER: mock
+      GA_MAINTRIX_ENABLED: "false"
+      GA_EDUCORE_ADAPTER: mock
+      GA_EDUCORE_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      VITE_API_PROXY: http://api:8000
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      api:
+        condition: service_started
+
+  # n8n est facultatif et n'est JAMAIS source de vérité métier : il orchestre
+  # des automatisations externes, rien de plus. Activer avec :
+  #   docker compose --profile automation up
+  n8n:
+    image: n8nio/n8n:1.62.1
+    profiles: ["automation"]
+    environment:
+      N8N_PORT: 5678
+      N8N_SECURE_COOKIE: "false"
+      GENERIC_TIMEZONE: Europe/Paris
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - growth_n8n_data:/home/node/.n8n
+
+volumes:
+  growth_db_data:
+  growth_n8n_data:

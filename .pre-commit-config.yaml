@@ -1,0 +1,45 @@
+# Contrôles exécutés avant chaque commit.
+# Installation : pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^apps/web/tsconfig\.json$
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.1
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^apps/api/
+      - id: ruff-format
+        files: ^apps/api/
+
+  - repo: local
+    hooks:
+      # Contrôle maison : aucune clé, aucun identifiant, aucune URL de
+      # connexion ne doit entrer dans l'historique.
+      - id: check-secrets
+        name: Recherche de secrets committés
+        entry: scripts/check-secrets.sh
+        language: script
+        pass_filenames: false
+
+      - id: typecheck-web
+        name: Typage TypeScript
+        entry: bash -c 'cd apps/web && npx tsc --noEmit'
+        language: system
+        pass_filenames: false
+        files: ^apps/web/.*\.(ts|tsx)$

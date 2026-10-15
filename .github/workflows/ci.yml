@@ -1,0 +1,80 @@
+# Intégration continue : construction et tests uniquement.
+#
+# Aucun déploiement, aucune publication d'image, aucun secret. Le déploiement
+# reste manuel et soumis à autorisation explicite (docs/09).
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: pip install -e "apps/api[dev]"
+
+      - name: Style et typage
+        run: |
+          ruff check apps/api/src apps/api/tests
+          ruff format --check apps/api/src apps/api/tests
+
+      - name: Tests
+        working-directory: apps/api
+        run: python -m pytest -q
+
+      - name: Migrations (aller et retour)
+        working-directory: apps/api
+        env:
+          GA_DATABASE_URL: sqlite+pysqlite:///./ci.sqlite3
+        run: |
+          PYTHONPATH=src alembic upgrade head
+          PYTHONPATH=src alembic downgrade base
+
+  web:
+    name: Interface (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  securite:
+    name: Secrets et composition
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recherche de secrets
+        run: ./scripts/check-secrets.sh
+
+      - name: Validation de la composition Docker locale
+        run: docker compose config -q

@@ -9,7 +9,7 @@ from growth_agent import __version__
 from growth_agent.api.deps import SessionDep, SettingsDep, require
 from growth_agent.schemas.auth import CurrentUser
 from growth_agent.schemas.common import HealthResponse
-from growth_agent.security.rbac import CAN_READ
+from growth_agent.security.rbac import CAN_ADMINISTER, CAN_READ
 
 #: Sonde publique, montée à la racine : un répartiteur de charge ou un
 #: conteneur doit pouvoir l'interroger sans jeton ni préfixe de version.
@@ -96,3 +96,72 @@ def integrations(
             "note": "Activation soumise à autorisation — voir docs/11-dependances-autorisation.md.",
         },
     }
+
+
+@admin_router.get("/retention")
+def retention_plan(
+    session: SessionDep,
+    settings: SettingsDep,
+    user: CurrentUser = Depends(require(CAN_ADMINISTER)),
+):
+    """Ce que la purge ferait si elle s'exécutait maintenant. N'écrit rien.
+
+    Il n'existe volontairement **aucun endpoint pour déclencher une purge
+    réelle**. Une suppression définitive ne doit pas tenir à un bouton dans un
+    navigateur : elle passe par la ligne de commande et la tâche planifiée,
+    où elle est délibérée, tracée et reproductible.
+    """
+    from growth_agent.retention.runner import active_run
+    from growth_agent.retention.service import PurgeService
+
+    plan = PurgeService(session, settings=settings).plan()
+    running = active_run(session, settings)
+
+    return {
+        "enabled": settings.purge_enabled,
+        "dry_run_by_default": settings.purge_dry_run_default,
+        "safeguards": {
+            "max_records_per_run": settings.purge_max_records_per_run,
+            "max_table_ratio": settings.purge_max_table_ratio,
+            "batch_size": settings.purge_batch_size,
+        },
+        "run_in_progress": str(running.id) if running else None,
+        "plan": plan.as_dict(),
+        "note": (
+            "Calcul en lecture seule. L'exécution réelle passe par "
+            "`python -m growth_agent.retention.cli --apply`, déclenchée par la "
+            "tâche planifiée."
+        ),
+    }
+
+
+@admin_router.get("/retention/runs")
+def retention_runs(
+    session: SessionDep,
+    limit: int = 20,
+    user: CurrentUser = Depends(require(CAN_ADMINISTER)),
+):
+    """Historique des exécutions de purge."""
+    from sqlalchemy import select
+
+    from growth_agent.models.ops import PurgeRun
+
+    runs = session.execute(
+        select(PurgeRun).order_by(PurgeRun.started_at.desc()).limit(min(limit, 200))
+    ).scalars()
+
+    return [
+        {
+            "id": str(run.id),
+            "status": run.status,
+            "dry_run": run.dry_run,
+            "triggered_by": run.triggered_by,
+            "started_at": run.started_at.isoformat(),
+            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+            "counts": run.counts,
+            "total_records": run.total_records,
+            "stopped_reason": run.stopped_reason,
+            "resumed_from_id": str(run.resumed_from_id) if run.resumed_from_id else None,
+        }
+        for run in runs
+    ]

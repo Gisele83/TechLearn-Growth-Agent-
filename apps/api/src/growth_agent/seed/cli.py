@@ -39,10 +39,7 @@ def main() -> int:
     print("\nComptes de démonstration (environnement local uniquement) :")
     for email, _name, role, password in DEMO_USERS:
         print(f"  {email:34} {role:11} {password}")
-    print(
-        "\nCes identifiants sont publics et ne doivent jamais exister ailleurs "
-        "qu'en local."
-    )
+    print("\nCes identifiants sont publics et ne doivent jamais exister ailleurs qu'en local.")
     return 0
 
 

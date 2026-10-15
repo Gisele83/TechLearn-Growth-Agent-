@@ -25,6 +25,7 @@ from growth_agent.models.ops import (
     AuditEvent,
     IntegrationConfig,
     ProductPilotEvent,
+    PurgeRun,
     User,
     WorkflowRun,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "ProspectCandidate",
     "ProspectSource",
     "ProspectStage",
+    "PurgeRun",
     "QualificationAssessment",
     "Role",
     "SourceKind",

@@ -35,7 +35,13 @@
 | Cloisonnement des deux produits | `test_the_two_products_stay_separated` | ✅ |
 | Un profil cible ne franchit pas la frontière | `test_an_icp_cannot_cross_product_boundaries` | ✅ |
 | Un gabarit ne franchit pas la frontière | `test_composer_refuses_a_template_from_the_other_product` | ✅ |
-| Purge automatique à échéance | — | ❌ **Non implémentée** (risque R3) |
+| Purge automatique à échéance | `test_retention.py`, 28 tests | ✅ implémentée, **désactivée par défaut** |
+| Les oppositions survivent à la purge | `test_opt_out_survives_the_purge_of_its_prospect` | ✅ |
+| Un blocage légal gèle l'enregistrement | `test_legal_hold_freezes_an_expired_record` | ✅ |
+| La simulation ne modifie rien | `test_dry_run_changes_absolutely_nothing` | ✅ |
+| Les indicateurs ne bougent pas après purge | `test_kpis_do_not_move_after_a_purge` | ✅ |
+| Verrou et reprise après incident | `test_retention_runner.py`, 10 tests | ✅ |
+| Comportement des sauvegardes vérifié | `test_retention_backups.py`, 2 tests | ✅ constat documenté |
 
 ## CRM
 
@@ -133,5 +139,6 @@ technique :
 2. domaine d'expédition non séparé ;
 3. approbateurs non nommés.
 
-Un point de dette technique mérite d'être remboursé rapidement : la purge
-automatique des données (R3).
+La purge automatique des données (R3) a été implémentée depuis : il reste à
+l'activer en production, par étapes, selon la procédure de mise en service de
+la politique de rétention.

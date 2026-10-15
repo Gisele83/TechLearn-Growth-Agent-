@@ -98,6 +98,39 @@ class Settings(BaseSettings):
     data_retention_days: int = 365
     default_legal_regime: LegalRegime = LegalRegime.FR
 
+    # --- Purge des données ---------------------------------------------------
+    # Durées de conservation par classe de donnée. Voir
+    # docs/07-politique-de-retention.md pour la justification de chacune.
+    draft_retention_days: int = 180
+    audit_retention_days: int = 1095  # 3 ans : traçabilité des décisions
+    pilot_event_retention_days: int = 1825  # 5 ans : suivi de la relation client
+
+    # La purge doit être activée explicitement. Un système qui supprime des
+    # données dès l'installation est un système dangereux.
+    purge_enabled: bool = False
+
+    # Sans `--apply`, la purge calcule et n'écrit rien. Le défaut est le mode
+    # simulation, y compris quand la purge est activée.
+    purge_dry_run_default: bool = True
+
+    # Plafond absolu par exécution. Au-delà, l'exécution s'arrête : une purge
+    # qui voudrait effacer des dizaines de milliers d'enregistrements signale
+    # plus probablement une erreur de configuration qu'un vrai besoin.
+    purge_max_records_per_run: int = 5000
+
+    # Proportion maximale d'une table purgeable en une exécution. Un calcul de
+    # date erroné rendrait soudain « échu » l'ensemble de la base ; ce garde-fou
+    # arrête l'exécution avant la première suppression.
+    purge_max_table_ratio: float = 0.5
+
+    # Taille des lots. Chaque lot est validé séparément, ce qui permet à une
+    # exécution interrompue de reprendre là où elle s'est arrêtée.
+    purge_batch_size: int = 200
+
+    # Au-delà de ce délai, une exécution encore « en cours » est considérée
+    # comme interrompue et son verrou peut être repris.
+    purge_lock_timeout_minutes: int = 60
+
     @field_validator("cors_origins")
     @classmethod
     def _strip_origins(cls, value: str) -> str:

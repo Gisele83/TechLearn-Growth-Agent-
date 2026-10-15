@@ -1,0 +1,18 @@
+# Déclenchement quotidien de la purge.
+#
+# 03h17 plutôt que 03h00 : les tâches planifiées se bousculent aux heures
+# rondes, et la purge n'a aucune raison d'y être.
+
+[Unit]
+Description=Purge quotidienne des données échues (TechLearn Growth Agent)
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+# Rattrape l'exécution si la machine était éteinte à l'heure prévue.
+Persistent=true
+# Évite que plusieurs machines ne purgent exactement en même temps.
+RandomizedDelaySec=600
+Unit=growth-agent-purge.service
+
+[Install]
+WantedBy=timers.target

@@ -169,8 +169,12 @@ d'élève, de parent ou de personnel. Aucune donnée d'exploitation industrielle
 ### Conservation
 
 `GA_DATA_RETENTION_DAYS`, 365 jours par défaut. Chaque prospect porte une date
-`retention_until`. **La purge automatique n'est pas implémentée** : c'est une
-lacune connue, listée dans le registre des risques.
+`retention_until`, et la purge automatique est implémentée : les prospects
+échus sont anonymisés, les contenus de messages effacés, les journaux anciens
+supprimés. La liste d'opposition n'est jamais purgée.
+
+Détail des durées, des garde-fous et de l'interaction avec les sauvegardes :
+[07-politique-de-retention.md](07-politique-de-retention.md).
 
 ### France et Cameroun
 

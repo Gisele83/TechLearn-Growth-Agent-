@@ -168,3 +168,41 @@ class ProductPilotEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     payload: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     source_adapter: Mapped[str] = mapped_column(String(32), default="mock", nullable=False)
+
+
+class PurgeRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Exécution de la purge de rétention.
+
+    Sert trois usages à la fois :
+
+    * **verrou** — une exécution `running` dont le battement de cœur est récent
+      empêche une seconde exécution concurrente ;
+    * **reprise** — une exécution interrompue est détectée par son battement de
+      cœur figé ; la purge étant idempotente, la relance repart naturellement
+      des enregistrements encore échus ;
+    * **traçabilité** — qui a lancé quoi, quand, combien d'enregistrements, et
+      pour quel motif l'exécution s'est éventuellement arrêtée.
+    """
+
+    __tablename__ = "purge_runs"
+    __table_args__ = (Index("ix_purge_run_status", "status", "started_at"),)
+
+    status: Mapped[str] = mapped_column(String(16), default="running", nullable=False)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    triggered_by: Mapped[str] = mapped_column(String(128), default="scheduler", nullable=False)
+
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    #: Mis à jour après chaque lot. Un battement figé révèle une interruption.
+    heartbeat_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+
+    #: Détail par classe de donnée : {"prospects_anonymized": 12, ...}
+    counts: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
+    #: Garde-fou ayant interrompu l'exécution, le cas échéant.
+    stopped_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    error_message: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    resumed_from_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+
+    @property
+    def total_records(self) -> int:
+        return sum(int(v) for v in self.counts.values() if isinstance(v, (int, float)))

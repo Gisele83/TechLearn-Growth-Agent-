@@ -74,19 +74,23 @@ dommage toucherait des clients existants.
 **Atténuation.** Domaine séparé, plafonds de fréquence déjà implémentés,
 opposition traitée immédiatement, en-têtes de désinscription en un clic.
 
-### R3 — Purge des données non implémentée
+### R3 — Purge des données ~~non implémentée~~ *(traité)*
 
-*Probabilité élevée, impact moyen.*
+*Probabilité résiduelle faible, impact faible.*
 
-`GA_DATA_RETENTION_DAYS` est configuré et chaque prospect porte une date
-`retention_until`, mais **rien ne supprime quoi que ce soit**. Au bout d'un an,
-la base contiendra des données qui auraient dû disparaître.
+**Traité.** La purge est implémentée, testée (40 tests) et documentée dans
+[07-politique-de-retention.md](07-politique-de-retention.md). Les prospects
+échus sont anonymisés plutôt que supprimés, pour que l'historique des
+indicateurs ne se réécrive pas. Les oppositions ne sont jamais purgées.
 
-**Atténuation actuelle.** Aucune, au-delà d'une suppression manuelle.
+**Risque résiduel.** La purge est **désactivée par défaut** : elle ne protège
+personne tant que `GA_PURGE_ENABLED=true` n'a pas été posé en production. La
+mise en service progressive est décrite dans la politique de rétention.
 
-**À faire.** Une tâche périodique qui supprime les prospects non convertis
-arrivés à échéance, en conservant les entrées d'opposition — sans quoi la
-personne serait recontactée. C'est la première dette technique à rembourser.
+Second point résiduel, vérifié expérimentalement : restaurer une sauvegarde
+antérieure à une purge réintroduit les données effacées. La purge planifiée les
+rattrape à l'exécution suivante, mais une promesse d'effacement doit tenir
+compte de la durée de conservation des sauvegardes.
 
 ### R4 — Prospection d'un client existant
 
@@ -160,7 +164,6 @@ corriger. Prévoir une demi-journée par connecteur au premier branchement.
 
 | Élément | Pourquoi c'est resté ainsi | Coût de remboursement |
 |---|---|---|
-| Purge des données non implémentée | Nécessite un ordonnanceur qui n'existe pas encore | ~1 jour |
 | Aucun worker asynchrone | Les volumes actuels ne le justifient pas | ~2 jours |
 | Limitation de débit en mémoire | Une seule instance | ~0,5 jour |
 | Pas de rapprochement client existant | Dépend d'une autorisation externe (D3) | Dépend de D3 |

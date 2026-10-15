@@ -1,0 +1,44 @@
+# Unité systemd — purge de rétention.
+#
+# Installation (sur l'hôte dédié Growth Agent, PAS sur Maintrix ni EduCore) :
+#   sudo cp infra/scheduling/growth-agent-purge.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now growth-agent-purge.timer
+#
+# Avant d'activer : laisser tourner en simulation pendant plusieurs jours et
+# relire les rapports. Retirer `--apply` ci-dessous pour cela.
+
+[Unit]
+Description=Purge des données arrivées à échéance (TechLearn Growth Agent)
+Documentation=file:///opt/growth-agent/docs/07-politique-de-retention.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=growth
+Group=growth
+WorkingDirectory=/opt/growth-agent
+
+# Les secrets viennent d'un fichier lisible par le seul utilisateur growth.
+EnvironmentFile=/etc/growth-agent/purge.env
+
+# Retirer --apply pour n'exécuter qu'une simulation.
+ExecStart=/opt/growth-agent/.venv/bin/python -m growth_agent.retention.cli --apply --actor systemd
+
+# Durcissement : la purge n'a besoin que de la base.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/growth-agent
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=512M
+TimeoutStartSec=30min
+
+# Codes de sortie : 2 = bloqué par un garde-fou, 3 = purge déjà en cours.
+# Ce ne sont pas des pannes : l'unité ne doit pas être marquée en échec.
+SuccessExitStatus=0 2 3
+
+[Install]
+WantedBy=multi-user.target

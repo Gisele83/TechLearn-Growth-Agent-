@@ -63,6 +63,10 @@ faisabilité 15, potentiel 15. Chaque point cite la preuve qui le justifie.
 depuis les événements. Quand il n'y a pas de base de calcul, l'interface
 affiche « Aucun envoi » et non « 0 % ».
 
+**Une opposition survit à la purge.** Les données arrivent à échéance et sont
+anonymisées, mais la liste d'opposition n'est jamais purgée : effacer l'adresse
+de quelqu'un qui a refusé d'être contacté reviendrait à le recontacter.
+
 **Rien n'est touché chez Maintrix ni EduCore.** L'interface du connecteur
 produit ne définit aucune méthode d'écriture, et un test le vérifie par
 introspection. Le connecteur HTTP refuse de s'initialiser sans autorisation
@@ -73,12 +77,13 @@ explicite.
 | | |
 |---|---|
 | Parcours commercial complet | ✅ fonctionnel de bout en bout |
-| Tests | ✅ 225 côté API, 23 côté interface |
+| Tests | ✅ 265 côté API, 23 côté interface |
 | Envoi réel d'emails | ⬜ **désactivé** — domaine d'expédition à séparer |
 | Connecteurs Maintrix / EduCore | ⬜ **désactivés** — autorisation à obtenir |
 | CRM réel | ⬜ adaptateur HubSpot écrit, jamais exécuté contre un compte |
 | Déploiement | ⬜ dossier préparé, rien n'a été exécuté |
 | Campagnes réelles | ⬜ préparées, non lancées |
+| Purge des données échues | ✅ implémentée et testée — ⬜ **désactivée** par défaut |
 
 Tout fonctionne hors ligne, sans clé d'API et sans coût. C'est délibéré : l'état
 par défaut est inoffensif.
@@ -117,6 +122,7 @@ scripts/             Outillage (recherche de secrets)
 | [Décisions et risques](docs/04-decisions-et-risques.md) | Ce qui reste à trancher |
 | [Recette](docs/05-recette.md) | Matrice de contrôles et leurs preuves |
 | [Campagnes pilotes](docs/06-campagnes-pilotes.md) | Profils, scripts, suivi |
+| [Politique de rétention](docs/07-politique-de-retention.md) | Durées, purge, garde-fous, sauvegardes |
 | [**Dépendances et autorisations**](docs/11-dependances-autorisation.md) | Ce qui exigerait de toucher aux plateformes |
 
 ## Développement

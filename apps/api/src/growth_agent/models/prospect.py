@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     ForeignKey,
     Index,
     Integer,
@@ -42,6 +43,9 @@ class ProspectCandidate(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint("product_id", "dedupe_key", name="uq_prospect_product_dedupe"),
         Index("ix_prospect_stage", "product_id", "stage"),
         Index("ix_prospect_score", "product_id", "score"),
+        # La purge balaie par échéance : sans cet index elle ferait un parcours
+        # complet de la table à chaque exécution.
+        Index("ix_prospect_retention", "retention_until", "anonymized_at"),
     )
 
     product_id: Mapped[uuid.UUID] = mapped_column(
@@ -78,6 +82,16 @@ class ProspectCandidate(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     retention_until: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     discovered_by: Mapped[str] = mapped_column(String(64), default="manual", nullable=False)
+
+    #: Conservation imposée (litige, obligation comptable, demande d'autorité).
+    #: Un enregistrement sous blocage n'est jamais purgé, quelle que soit son
+    #: échéance. Le blocage se lève à la main, et le geste est journalisé.
+    legal_hold: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    legal_hold_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    #: Date d'anonymisation. Non nul = les champs personnels ont été effacés ;
+    #: la ligne subsiste pour que l'historique des indicateurs reste stable.
+    anonymized_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     sources: Mapped[list[ProspectSource]] = relationship(
         back_populates="prospect", cascade="all, delete-orphan"

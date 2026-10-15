@@ -59,6 +59,14 @@ format: ## Reformate le code
 	cd $(API) && ../../$(VENV)/bin/ruff format src tests
 	cd $(API) && ../../$(VENV)/bin/ruff check --fix src tests
 
+.PHONY: purge-dry-run
+purge-dry-run: ## Simule la purge de rétention (ne modifie rien)
+	PYTHONPATH=$(API)/src $(PY) -m growth_agent.retention.cli
+
+.PHONY: purge-apply
+purge-apply: ## Applique la purge (exige GA_PURGE_ENABLED=true)
+	PYTHONPATH=$(API)/src $(PY) -m growth_agent.retention.cli --apply --actor make
+
 .PHONY: secrets
 secrets: ## Recherche un secret qui aurait été committé
 	@scripts/check-secrets.sh

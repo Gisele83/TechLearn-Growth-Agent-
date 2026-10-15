@@ -1,0 +1,18 @@
+# Variante cron, pour un hôte sans systemd.
+#
+#   sudo -u growth crontab infra/scheduling/crontab.example
+#
+# Le verrou applicatif (table purge_runs) empêche deux exécutions simultanées,
+# y compris si cron déclenche alors que la précédente tourne encore.
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Les secrets sont lus depuis l'environnement, jamais écrits ici.
+BASH_ENV=/etc/growth-agent/purge.env
+
+# Purge quotidienne à 03h17. Retirer --apply pour n'exécuter qu'une simulation.
+17 3 * * * cd /opt/growth-agent && .venv/bin/python -m growth_agent.retention.cli --apply --actor cron >> /var/log/growth-agent/purge.log 2>&1
+
+# Simulation hebdomadaire, en JSON, pour alimenter la supervision.
+40 7 * * 1 cd /opt/growth-agent && .venv/bin/python -m growth_agent.retention.cli --json --actor cron-dryrun >> /var/log/growth-agent/purge-dryrun.log 2>&1

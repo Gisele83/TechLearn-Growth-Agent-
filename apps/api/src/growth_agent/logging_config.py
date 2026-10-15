@@ -1,9 +1,16 @@
 """Journalisation sans donnée personnelle ni secret.
 
-Un filtre applique `redact_text` au message final de chaque enregistrement.
-C'est une protection de dernier recours : le code appelant doit déjà éviter de
-journaliser une donnée sensible, mais une erreur d'inattention ne doit pas se
-traduire par une adresse email en clair dans les journaux.
+Deux protections superposées, et la seconde est indispensable.
+
+Le **filtre** masque le message de chaque enregistrement. Il ne suffit pas :
+`logging.Formatter` rend séparément la trace d'exception, qui ne passe pas par
+le message. Or une erreur SQLAlchemy contient l'instruction *et ses
+paramètres* — donc potentiellement une adresse email. Un simple
+`logger.exception()` suffisait à l'écrire en clair.
+
+Le **formateur** masque donc la chaîne finale, trace comprise. C'est lui qui
+porte la garantie ; le filtre reste pour les enregistrements qui partiraient
+vers un autre gestionnaire.
 """
 
 from __future__ import annotations
@@ -27,9 +34,21 @@ class RedactionFilter(logging.Filter):
         return True
 
 
+class RedactingFormatter(logging.Formatter):
+    """Masque la sortie rendue, trace d'exception et pile incluses.
+
+    `logging.Formatter.format` assemble le message, puis y ajoute
+    `exc_text` et `stack_info`. En masquant après cet assemblage, on couvre
+    tout ce qui finira réellement dans le journal.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_text(super().format(record))
+
+
 def configure_logging(level: str = "INFO") -> None:
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s — %(message)s"))
+    handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)-7s %(name)s — %(message)s"))
     handler.addFilter(RedactionFilter())
 
     root = logging.getLogger()

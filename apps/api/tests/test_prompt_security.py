@@ -191,3 +191,70 @@ def test_log_filter_redacts_the_final_message():
     )
     RedactionFilter().filter(record)
     assert "marie.dupont@ecole.example.org" not in record.getMessage()
+
+
+# --- Masquage des traces d'exception -----------------------------------------
+#
+# Ces tests existent à cause d'une faille réelle trouvée à la relecture : le
+# filtre masquait le message de l'enregistrement, mais pas la trace
+# d'exception rendue séparément par le formateur. Une erreur SQLAlchemy porte
+# l'instruction et ses paramètres — donc une adresse email — et un simple
+# `logger.exception()` l'écrivait en clair.
+
+
+def _capture(logger_name: str, emit) -> str:
+    import io
+    import logging
+
+    from growth_agent.logging_config import RedactingFormatter, RedactionFilter
+
+    buffer = io.StringIO()
+    handler = logging.StreamHandler(buffer)
+    handler.setFormatter(RedactingFormatter("%(levelname)s %(message)s"))
+    handler.addFilter(RedactionFilter())
+
+    logger = logging.getLogger(logger_name)
+    logger.handlers = [handler]
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    emit(logger)
+    return buffer.getvalue()
+
+
+def test_an_exception_traceback_is_redacted():
+    """Le cas qui avait échappé au filtre seul."""
+
+    def emit(logger):
+        try:
+            raise ValueError(
+                "INSERT INTO prospect_candidates ... parameters: "
+                "('marie.dupont@ecole.example.org', '+237 677 889900')"
+            )
+        except ValueError:
+            logger.exception("Échec du traitement")
+
+    output = _capture("test.traceback", emit)
+    assert "Traceback" in output, "la trace doit bien être rendue"
+    assert "marie.dupont@ecole.example.org" not in output
+    assert "m***@ecole.example.org" in output
+    assert "677 889900" not in output
+
+
+def test_an_api_key_in_a_traceback_is_masked():
+    def emit(logger):
+        try:
+            raise RuntimeError("Appel refusé avec la clé sk-live-abcdef1234567890")
+        except RuntimeError:
+            logger.exception("Échec du connecteur")
+
+    output = _capture("test.traceback.key", emit)
+    assert "sk-live-abcdef1234567890" not in output
+    assert "[secret-masqué]" in output
+
+
+def test_stack_info_is_redacted_too():
+    def emit(logger):
+        logger.info("contact direction@ecole.example.org", stack_info=True)
+
+    output = _capture("test.stackinfo", emit)
+    assert "direction@ecole.example.org" not in output

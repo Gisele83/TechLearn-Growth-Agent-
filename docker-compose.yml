@@ -84,6 +84,31 @@ services:
       api:
         condition: service_started
 
+  # Purge de rétention, en profil facultatif : elle ne tourne pas avec la pile
+  # ordinaire. Permet d'exercer localement le chemin de la tâche planifiée —
+  # en simulation, car GA_PURGE_ENABLED reste à false.
+  #
+  #   docker compose --profile retention run --rm purge
+  #   docker compose --profile retention run --rm purge --json
+  #
+  # Pour éprouver une exécution réelle EN LOCAL uniquement, passer
+  # GA_PURGE_ENABLED=true ci-dessous et ajouter --apply à la commande.
+  purge:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    profiles: ["retention"]
+    environment:
+      GA_ENVIRONMENT: local
+      GA_DATABASE_URL: postgresql+psycopg://growth:growth_local_only@db:5432/growth_agent
+      GA_PURGE_ENABLED: "false"
+      GA_PURGE_DRY_RUN_DEFAULT: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["python", "-m", "growth_agent.retention.cli"]
+    command: ["--actor", "docker"]
+
   # n8n est facultatif et n'est JAMAIS source de vérité métier : il orchestre
   # des automatisations externes, rien de plus. Activer avec :
   #   docker compose --profile automation up

@@ -76,8 +76,17 @@ un défaut.
 
 **Ce qui est en place.**
 
-- Un filtre de journalisation applique un masquage au message final de chaque
-  enregistrement : emails partiellement masqués, téléphones et clés remplacés.
+- Un **formateur** masque la chaîne finale écrite au journal, **trace
+  d'exception comprise**, et un filtre masque en plus le message de chaque
+  enregistrement.
+- Ce double dispositif vient d'une faille trouvée à la relecture : le filtre
+  seul ne couvrait pas la trace d'exception, rendue séparément par le
+  formateur. Or une erreur SQLAlchemy porte l'instruction *et ses paramètres* —
+  un simple `logger.exception()` écrivait donc une adresse email en clair.
+  Trois tests encodent la correction (`test_an_exception_traceback_is_redacted`
+  et suivants).
+- Le message d'erreur stocké dans `purge_runs.error_message` est masqué avant
+  stockage, pour la même raison.
 - Les clés sensibles d'une structure journalisée sont remplacées par un
   condensat.
 - `sqlalchemy.engine` n'est jamais en niveau INFO : les requêtes contiennent

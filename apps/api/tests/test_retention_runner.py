@@ -194,3 +194,30 @@ def test_a_blocked_dry_run_reports_blocked_not_succeeded(session, expired):
     assert run.dry_run is True
     assert run.status == "blocked"
     assert report.plan.blocked is True
+
+
+def test_a_failure_message_is_stored_without_personal_data(session, expired, monkeypatch):
+    """Une erreur SQL porte ses paramètres : l'adresse ne doit pas atterrir
+    en clair dans `purge_runs.error_message`."""
+    expired(1)
+
+    def exploding_apply(self, **kwargs):
+        raise RuntimeError(
+            "UPDATE prospect_candidates ... parameters: "
+            "('personne@ecole.example.org', '+237 677 889900')"
+        )
+
+    from growth_agent.retention.service import PurgeService
+
+    monkeypatch.setattr(PurgeService, "apply", exploding_apply)
+
+    with pytest.raises(RuntimeError):
+        run_purge(session, dry_run=False, settings=purge_settings())
+
+    failed = session.execute(select(PurgeRun).where(PurgeRun.status == "failed")).scalars().one()
+
+    assert "personne@ecole.example.org" not in failed.error_message
+    assert "m***" not in failed.error_message or "p***" in failed.error_message
+    assert "677 889900" not in failed.error_message
+    # Le type d'erreur reste exploitable pour le diagnostic.
+    assert "RuntimeError" in failed.error_message

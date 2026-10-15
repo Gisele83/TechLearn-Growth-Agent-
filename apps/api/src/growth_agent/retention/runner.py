@@ -29,6 +29,7 @@ from growth_agent.config import Settings, get_settings
 from growth_agent.models.ops import PurgeRun
 from growth_agent.retention.policy import default_now
 from growth_agent.retention.service import PurgeReport, PurgeService, SafetyStop
+from growth_agent.security.redaction import redact_text
 
 logger = logging.getLogger("growth_agent.retention")
 
@@ -164,9 +165,11 @@ def run_purge(
         raise
     except Exception as exc:
         run.status = "failed"
-        # Le type et le message d'exception peuvent contenir des valeurs ; on
-        # ne garde que le type et une forme tronquée.
-        run.error_message = f"{type(exc).__name__}: {str(exc)[:500]}"
+        # Une erreur SQLAlchemy porte l'instruction ET ses paramètres : une
+        # adresse email peut s'y trouver. On masque avant de stocker, et on
+        # tronque ensuite — dans cet ordre, sinon la troncature pourrait
+        # couper un motif au milieu et le rendre méconnaissable du masquage.
+        run.error_message = redact_text(f"{type(exc).__name__}: {exc}")[:500]
         run.finished_at = default_now()
         session.commit()
         logger.exception("Échec de la purge %s", run.id)

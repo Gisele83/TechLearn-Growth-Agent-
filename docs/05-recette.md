@@ -22,6 +22,8 @@
 | Aucun secret dans les fichiers suivis | `scripts/check-secrets.sh`, en pre-commit et en CI | ✅ |
 | `.env.example` sans aucune valeur | Contrôlé par le script | ✅ |
 | Masquage dans les journaux | `test_log_filter_redacts_the_final_message` | ✅ |
+| Masquage des traces d'exception | `test_an_exception_traceback_is_redacted` | ✅ corrigé après relecture |
+| Masquage d'une erreur stockée en base | `test_a_failure_message_is_stored_without_personal_data` | ✅ |
 | Clés sensibles remplacées par un condensat | `test_sensitive_keys_are_replaced_by_a_digest` | ✅ |
 | L'endpoint d'état n'expose aucune valeur | `test_integrations_endpoint_never_exposes_a_secret` | ✅ |
 
@@ -42,6 +44,8 @@
 | Les indicateurs ne bougent pas après purge | `test_kpis_do_not_move_after_a_purge` | ✅ |
 | Verrou et reprise après incident | `test_retention_runner.py`, 10 tests | ✅ |
 | Comportement des sauvegardes vérifié | `test_retention_backups.py`, 2 tests | ✅ constat documenté |
+| La purge ne franchit pas la frontière entre produits | `test_the_purge_does_not_cross_product_boundaries` | ✅ |
+| Toute voie de création pose une échéance | `test_every_creation_path_sets_a_retention_date` | ✅ |
 
 ## CRM
 

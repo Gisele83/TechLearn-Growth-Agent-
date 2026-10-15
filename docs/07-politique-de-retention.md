@@ -106,6 +106,14 @@ Unité et minuterie dans [`infra/scheduling/`](../infra/scheduling/),
 déclenchement quotidien à 03h17 — pas à 03h00, parce que les tâches planifiées
 se bousculent aux heures rondes.
 
+Pour exercer le chemin planifié en local, sans rien installer :
+
+```bash
+docker compose --profile retention run --rm purge
+```
+
+Le profil est facultatif : la purge ne tourne pas avec la pile ordinaire.
+
 ### Verrou et reprise après incident
 
 Le verrou est porté par la table `purge_runs` plutôt que par un fichier ou un

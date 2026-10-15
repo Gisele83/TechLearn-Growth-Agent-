@@ -494,3 +494,89 @@ def test_dry_run_is_not_audited_as_an_application(session, expired_prospect):
         .where(AuditEvent.action == "retention.purge_applied")
     ).scalar_one()
     assert entries == 0
+
+
+# --- Isolation ---------------------------------------------------------------
+
+
+def test_the_purge_does_not_cross_product_boundaries(
+    session, product_educore, product_maintrix, make_prospect
+):
+    """Chaque enregistrement porte sa propre échéance : purger les données
+    échues d'un produit ne doit rien faire à celles de l'autre."""
+    echu = make_prospect(product=product_educore, domain="echu-edu.example.org")
+    echu.retention_until = NOW - timedelta(days=30)
+    vivant = make_prospect(product=product_maintrix, domain="vivant-mtx.example.org")
+    vivant.retention_until = NOW + timedelta(days=100)
+    session.flush()
+
+    PurgeService(session, settings=purge_settings()).apply(dry_run=False, now=NOW)
+    session.refresh(echu)
+    session.refresh(vivant)
+
+    assert echu.contact_email is None
+    assert vivant.contact_email is not None
+    assert vivant.anonymized_at is None
+
+
+def test_an_anonymized_prospect_keeps_its_product(session, expired_prospect, product_educore):
+    """Le cloisonnement par produit survit à l'anonymisation : sans lui, les
+    indicateurs du produit perdraient la ligne."""
+    PurgeService(session, settings=purge_settings()).apply(dry_run=False, now=NOW)
+    session.refresh(expired_prospect)
+    assert expired_prospect.product_id == product_educore.id
+
+
+def test_every_creation_path_sets_a_retention_date(client, seeded, auth):
+    """Sans échéance, un enregistrement ne serait jamais purgé. Ce test garde
+    les deux voies de création — découverte et import manuel."""
+    from sqlalchemy import select as sa_select
+
+    commercial = auth("commercial")
+
+    # Voie 1 : découverte automatique.
+    client.post(
+        "/api/v1/prospects/discover",
+        headers=commercial,
+        json={"product_code": "educore", "limit": 10},
+    )
+    # Voie 2 : import manuel.
+    client.post(
+        "/api/v1/prospects",
+        headers=commercial,
+        json={
+            "product_code": "educore",
+            "organization_name": "Import Manuel",
+            "website": "https://import-manuel.example.org",
+            "sources": [{"url": "https://import-manuel.example.org/a-propos"}],
+        },
+    )
+
+    prospects = client.get(
+        "/api/v1/prospects?product_code=educore&limit=100", headers=commercial
+    ).json()["items"]
+    assert len(prospects) >= 2
+
+    # L'API n'expose pas la date d'échéance : on la lit en base.
+    from growth_agent.models.prospect import ProspectCandidate as PC
+
+    rows = list(session_rows(client, PC, sa_select))
+    assert rows, "aucun prospect créé"
+    for row in rows:
+        assert row.retention_until is not None, (
+            f"« {row.organization_name} » est créé sans date d'échéance : "
+            "il ne serait jamais purgé."
+        )
+
+
+def session_rows(client, model, select_fn):
+    """Lit les lignes via la session que le client HTTP utilise."""
+    from growth_agent.api.deps import db_session
+
+    override = client.app.dependency_overrides[db_session]
+    generator = override()
+    session = next(generator)
+    try:
+        return list(session.execute(select_fn(model)).scalars())
+    finally:
+        generator.close()

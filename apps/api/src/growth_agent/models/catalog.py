@@ -5,11 +5,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from growth_agent.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from growth_agent.db.types import GUID, JSONDict
+from growth_agent.db.types import GUID, JSONDict, UTCDateTime
 from growth_agent.models.enums import CampaignStatus, ProductCode
 
 
@@ -74,8 +74,8 @@ class Campaign(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         String(16), default=CampaignStatus.DRAFT, nullable=False
     )
     legal_regime: Mapped[str] = mapped_column(String(8), default="FR", nullable=False)
-    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    starts_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     target_metrics: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     owner_email: Mapped[str] = mapped_column(String(256), default="", nullable=False)
 

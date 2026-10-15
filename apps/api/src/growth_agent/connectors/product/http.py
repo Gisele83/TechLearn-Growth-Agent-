@@ -75,21 +75,33 @@ class HTTPProductAdapter(ProductAdapter):
         )
 
     def _get(self, path: str, **params: Any) -> dict[str, Any]:
-        response = self._breaker.call(
-            lambda: self._client.get(path, params={k: v for k, v in params.items() if v is not None}),
-            provider=self.product_code,
-        )
+        self._breaker.ensure_closed(provider=self.product_code)
+        try:
+            response = self._client.get(
+                path, params={k: v for k, v in params.items() if v is not None}
+            )
+        except httpx.HTTPError as exc:
+            self._breaker.record_failure()
+            raise ConnectorError(
+                f"Erreur réseau vers {self.product_code} : {type(exc).__name__}",
+                provider=self.product_code,
+                retryable=True,
+            ) from exc
         if response.status_code == 429:
+            self._breaker.record_failure()
             raise RateLimitError(
                 f"Quota atteint sur {self.product_code}.", provider=self.product_code
             )
         if response.status_code == 404:
             return {}
+        if response.status_code >= 500:
+            self._breaker.record_failure()
         if response.status_code >= 400:
             raise ConnectorError(
                 f"Lecture {self.product_code} refusée ({response.status_code}).",
                 provider=self.product_code,
             )
+        self._breaker.record_success()
         return response.json()
 
     def list_events(self, *, since: datetime | None = None, limit: int = 100) -> list[ProductEvent]:

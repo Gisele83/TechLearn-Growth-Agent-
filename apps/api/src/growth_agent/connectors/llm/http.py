@@ -89,12 +89,11 @@ class HTTPLLMProvider(LLMProvider):
         delays = backoff_delays(self._max_retries)
         last_error: Exception | None = None
         for attempt in range(self._max_retries + 1):
+            self._breaker.ensure_closed(provider=self.provider)
             try:
-                response = self._breaker.call(
-                    lambda: self._client.post("/v1/chat/completions", json=payload),
-                    provider=self.provider,
-                )
+                response = self._client.post("/v1/chat/completions", json=payload)
             except httpx.HTTPError as exc:
+                self._breaker.record_failure()
                 last_error = ConnectorError(
                     f"Erreur réseau LLM : {type(exc).__name__}",
                     provider=self.provider,
@@ -102,19 +101,23 @@ class HTTPLLMProvider(LLMProvider):
                 )
             else:
                 if response.status_code == 429:
+                    self._breaker.record_failure()
                     last_error = RateLimitError("Quota LLM atteint.", provider=self.provider)
                 elif 500 <= response.status_code < 600:
+                    self._breaker.record_failure()
                     last_error = ConnectorError(
                         f"Le fournisseur LLM a renvoyé {response.status_code}.",
                         provider=self.provider,
                         retryable=True,
                     )
                 elif response.status_code >= 400:
+                    self._breaker.record_success()
                     raise ConnectorError(
                         f"Requête LLM refusée ({response.status_code}).",
                         provider=self.provider,
                     )
                 else:
+                    self._breaker.record_success()
                     return self._parse(response.json(), input_tokens)
 
             if attempt < self._max_retries:

@@ -80,6 +80,20 @@ class CircuitBreaker:
         if self._failures >= self.failure_threshold:
             self._opened_at = time.monotonic()
 
+    def ensure_closed(self, *, provider: str = "") -> None:
+        """Refuse l'appel si le coupe-circuit est ouvert.
+
+        À utiliser quand l'échec ne se manifeste pas par une exception mais par
+        un code de statut HTTP : l'appelant décide alors lui-même, après
+        lecture de la réponse, s'il s'agit d'un succès ou d'un échec.
+        """
+        if self.is_open:
+            raise ConnectorError(
+                f"Coupe-circuit ouvert pour {provider or 'le fournisseur'} : appel refusé.",
+                provider=provider,
+                retryable=True,
+            )
+
     def call(self, func: Callable[[], T], *, provider: str = "") -> T:
         if self.is_open:
             raise ConnectorError(

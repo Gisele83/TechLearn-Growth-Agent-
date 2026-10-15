@@ -7,7 +7,6 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -18,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from growth_agent.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from growth_agent.db.types import GUID, JSONDict
+from growth_agent.db.types import GUID, JSONDict, UTCDateTime
 from growth_agent.models.enums import Role, WorkflowStatus
 
 
@@ -37,7 +36,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UTCDateTime(), nullable=True
     )
 
 
@@ -61,8 +60,8 @@ class WorkflowRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         String(16), default=WorkflowStatus.PENDING, nullable=False
     )
     triggered_by: Mapped[str] = mapped_column(String(128), default="system", nullable=False)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     input_summary: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     output_summary: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     error_message: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -110,7 +109,7 @@ class AuditEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_audit_object", "object_type", "object_id"),
     )
 
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     actor: Mapped[str] = mapped_column(String(128), nullable=False)
     actor_role: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     action: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -143,7 +142,7 @@ class IntegrationConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     options: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     authorization_reference: Mapped[str] = mapped_column(Text, default="", nullable=False)
     last_checked_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UTCDateTime(), nullable=True
     )
     last_status: Mapped[str] = mapped_column(String(32), default="unknown", nullable=False)
 
@@ -170,8 +169,8 @@ class ProductPilotEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     event_type: Mapped[str] = mapped_column(String(48), nullable=False)
     external_event_id: Mapped[str] = mapped_column(String(128), nullable=False)
     external_org_ref: Mapped[str] = mapped_column(String(128), default="", nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     payload: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     source_adapter: Mapped[str] = mapped_column(String(32), default="mock", nullable=False)

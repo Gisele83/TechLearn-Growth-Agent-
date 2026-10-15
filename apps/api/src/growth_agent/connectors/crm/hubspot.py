@@ -78,12 +78,11 @@ class HubSpotCRMAdapter(CRMAdapter):
         last_error: Exception | None = None
 
         for attempt in range(self._max_retries + 1):
+            self._breaker.ensure_closed(provider=self.provider)
             try:
-                response = self._breaker.call(
-                    lambda: self._client.request(method, path, **kwargs),
-                    provider=self.provider,
-                )
+                response = self._client.request(method, path, **kwargs)
             except httpx.HTTPError as exc:
+                self._breaker.record_failure()
                 last_error = ConnectorError(
                     f"Erreur réseau HubSpot : {type(exc).__name__}",
                     provider=self.provider,
@@ -91,7 +90,13 @@ class HubSpotCRMAdapter(CRMAdapter):
                 )
             else:
                 if response.status_code == 429:
-                    retry_after = _retry_after_seconds(response, default=delays[min(attempt, len(delays) - 1)])
+                    # Une réponse reçue n'est pas une panne de transport : le
+                    # coupe-circuit doit être informé explicitement, sinon un
+                    # service en erreur permanente ne le ferait jamais ouvrir.
+                    self._breaker.record_failure()
+                    retry_after = _retry_after_seconds(
+                        response, default=delays[min(attempt, len(delays) - 1)]
+                    )
                     last_error = RateLimitError(
                         "Quota HubSpot atteint.",
                         provider=self.provider,
@@ -101,19 +106,24 @@ class HubSpotCRMAdapter(CRMAdapter):
                         self._sleep(retry_after)
                         continue
                 elif 500 <= response.status_code < 600:
+                    self._breaker.record_failure()
                     last_error = ConnectorError(
                         f"HubSpot a renvoyé {response.status_code}.",
                         provider=self.provider,
                         retryable=True,
                     )
                 elif response.status_code >= 400:
-                    # 4xx hors 429 : inutile de réessayer, on échoue tout de suite.
+                    # 4xx hors 429 : la requête est fautive, pas le service.
+                    # Le coupe-circuit n'a pas à s'ouvrir, et réessayer ne
+                    # ferait que consommer du quota.
+                    self._breaker.record_success()
                     raise ConnectorError(
                         f"Requête HubSpot refusée ({response.status_code}).",
                         provider=self.provider,
                         retryable=False,
                     )
                 else:
+                    self._breaker.record_success()
                     return response.json() if response.content else {}
 
             if attempt < self._max_retries:

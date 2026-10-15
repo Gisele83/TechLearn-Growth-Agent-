@@ -12,7 +12,6 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -23,7 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from growth_agent.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from growth_agent.db.types import GUID, JSONDict
+from growth_agent.db.types import GUID, JSONDict, UTCDateTime
 from growth_agent.models.enums import (
     LegalBasis,
     ProspectStage,
@@ -80,7 +79,7 @@ class ProspectCandidate(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     retention_until: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UTCDateTime(), nullable=True
     )
     discovered_by: Mapped[str] = mapped_column(String(64), default="manual", nullable=False)
 
@@ -108,7 +107,7 @@ class ProspectSource(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     url: Mapped[str] = mapped_column(String(1024), nullable=False)
     title: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     excerpt: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     collected_by: Mapped[str] = mapped_column(String(64), default="market_scout", nullable=False)
     provider: Mapped[str] = mapped_column(String(64), default="mock", nullable=False)
     license_note: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -170,6 +169,6 @@ class CRMMapping(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     local_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
     remote_id: Mapped[str] = mapped_column(String(128), nullable=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UTCDateTime(), nullable=True
     )
     sync_digest: Mapped[str] = mapped_column(String(64), default="", nullable=False)

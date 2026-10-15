@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import CHAR, Text
+from sqlalchemy import CHAR, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.types import TypeDecorator
 
@@ -69,3 +70,32 @@ class JSONDict(TypeDecorator):
         if isinstance(value, (dict, list)):
             return value
         return json.loads(value)
+
+
+class UTCDateTime(TypeDecorator):
+    """Horodatage toujours rendu en UTC *avec* fuseau.
+
+    PostgreSQL restitue des datetimes conscients du fuseau, SQLite non. Sans
+    uniformisation, une comparaison de dates réussit en production et échoue
+    en test (ou l'inverse), ce qui est la pire des situations. Ce type force
+    donc l'UTC à l'écriture comme à la lecture, quel que soit le moteur.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            # Une date naïve est interprétée comme UTC : c'est la convention
+            # de l'application, rappelée dans `db.base.utcnow`.
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    def process_result_value(self, value: Any, dialect: Any) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

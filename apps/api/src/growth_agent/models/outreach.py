@@ -7,7 +7,6 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
     ForeignKey,
     Index,
     String,
@@ -17,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from growth_agent.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from growth_agent.db.types import GUID, JSONDict
+from growth_agent.db.types import GUID, JSONDict, UTCDateTime
 from growth_agent.models.enums import (
     ApprovalDecision,
     DraftStatus,
@@ -85,7 +84,7 @@ class MessageDraft(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     model_reference: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     blocked_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     approvals: Mapped[list[ApprovalRequest]] = relationship(
         back_populates="draft", cascade="all, delete-orphan"
@@ -121,9 +120,9 @@ class ApprovalRequest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         String(16), default=ApprovalDecision.PENDING, nullable=False
     )
     decided_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     decision_comment: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     draft: Mapped[MessageDraft | None] = relationship(back_populates="approvals")
 
@@ -157,7 +156,7 @@ class OutreachEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     channel: Mapped[str] = mapped_column(String(16), default=OutreachChannel.EMAIL, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     actor: Mapped[str] = mapped_column(String(128), default="system", nullable=False)
     payload: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -191,4 +190,4 @@ class SuppressionEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     reason: Mapped[str] = mapped_column(String(32), nullable=False)
     source: Mapped[str] = mapped_column(String(128), default="manual", nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)

@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, func
+from sqlalchemy import func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from growth_agent.db.types import GUID
+from growth_agent.db.types import GUID, UTCDateTime
 
 
 def utcnow() -> datetime:
@@ -22,10 +22,10 @@ class Base(DeclarativeBase):
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, server_default=func.now(), nullable=False
+        UTCDateTime(), default=utcnow, server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        UTCDateTime(),
         default=utcnow,
         onupdate=utcnow,
         server_default=func.now(),

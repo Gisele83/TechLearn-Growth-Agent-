@@ -137,21 +137,23 @@ class Settings(BaseSettings):
         """
         prefix = product_code.lower()
         if prefix == "maintrix":
-            return self.maintrix_enabled and self.maintrix_adapter == "http" and bool(
-                self.maintrix_base_url
+            return (
+                self.maintrix_enabled
+                and self.maintrix_adapter == "http"
+                and bool(self.maintrix_base_url)
             )
         if prefix == "educore":
-            return self.educore_enabled and self.educore_adapter == "http" and bool(
-                self.educore_base_url
+            return (
+                self.educore_enabled
+                and self.educore_adapter == "http"
+                and bool(self.educore_base_url)
             )
         return False
 
     def can_send_email(self) -> bool:
         """L'envoi réel requiert le flag ET un fournisseur non-mock ET un expéditeur."""
         return (
-            self.email_sending_enabled
-            and self.email_provider != "mock"
-            and bool(self.email_from)
+            self.email_sending_enabled and self.email_provider != "mock" and bool(self.email_from)
         )
 
     def configuration_warnings(self) -> list[str]:
@@ -197,6 +199,8 @@ DEFAULT_PRODUCTS: tuple[dict[str, str], ...] = (
         "code": "educore",
         "name": "EduCore",
         "sector": "Gestion scolaire et formation",
-        "description": "Gestion administrative pour écoles, lycées, centres de formation et universités.",
+        "description": (
+            "Gestion administrative pour écoles, lycées, centres de formation et universités."
+        ),
     },
 )

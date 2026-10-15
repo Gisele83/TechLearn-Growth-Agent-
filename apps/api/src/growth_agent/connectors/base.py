@@ -110,8 +110,6 @@ class CircuitBreaker:
         return result
 
 
-def backoff_delays(
-    max_retries: int, *, base: float = 0.5, cap: float = 8.0
-) -> list[float]:
+def backoff_delays(max_retries: int, *, base: float = 0.5, cap: float = 8.0) -> list[float]:
     """Délais d'attente exponentiels bornés, déterministes donc testables."""
     return [min(cap, base * (2**attempt)) for attempt in range(max_retries)]

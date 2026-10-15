@@ -35,9 +35,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     role: Mapped[str] = mapped_column(String(16), default=Role.LECTEUR, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_login_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), nullable=True
-    )
+    last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 class WorkflowRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -56,9 +54,7 @@ class WorkflowRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True
     )
-    status: Mapped[str] = mapped_column(
-        String(16), default=WorkflowStatus.PENDING, nullable=False
-    )
+    status: Mapped[str] = mapped_column(String(16), default=WorkflowStatus.PENDING, nullable=False)
     triggered_by: Mapped[str] = mapped_column(String(128), default="system", nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
@@ -141,9 +137,7 @@ class IntegrationConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     credential_env_var: Mapped[str] = mapped_column(String(96), default="", nullable=False)
     options: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     authorization_reference: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    last_checked_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), nullable=True
-    )
+    last_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     last_status: Mapped[str] = mapped_column(String(32), default="unknown", nullable=False)
 
 

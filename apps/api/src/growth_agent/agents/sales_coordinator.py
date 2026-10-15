@@ -93,14 +93,18 @@ class SalesCoordinatorAgent(BaseAgent[CoordinationOutcome]):
                 outcome.skipped.append(
                     {
                         "reason": "quota",
-                        "detail": f"{sent_count} message(s) déjà envoyé(s) (maximum {MAX_FOLLOW_UPS}).",
+                        "detail": (
+                            f"{sent_count} message(s) déjà envoyé(s) (maximum {MAX_FOLLOW_UPS})."
+                        ),
                     }
                 )
                 return AgentResult(value=outcome, summary={"skipped": "quota"})
 
         due_at = context.moment + timedelta(days=max(0, due_in_days))
         title = task_title or _default_title(kind, prospect)
-        idempotency_key = digest(f"task|{prospect.id}|{kind}|{due_at.date().isoformat()}", length=48)
+        idempotency_key = digest(
+            f"task|{prospect.id}|{kind}|{due_at.date().isoformat()}", length=48
+        )
 
         task = self._crm.create_task(
             CRMTask(
@@ -189,5 +193,3 @@ def _store_mapping(
         )
     )
     context.session.flush()
-
-

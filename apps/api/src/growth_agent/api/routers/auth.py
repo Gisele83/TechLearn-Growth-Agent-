@@ -24,7 +24,11 @@ def login(payload: LoginRequest, session: SessionDep, settings: SettingsDep) -> 
     ).scalar_one_or_none()
 
     # Message identique dans les deux cas : ne pas révéler si l'adresse existe.
-    if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+    if (
+        user is None
+        or not user.is_active
+        or not verify_password(payload.password, user.password_hash)
+    ):
         record_audit(
             session,
             actor=payload.email.lower(),

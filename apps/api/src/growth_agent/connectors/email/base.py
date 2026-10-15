@@ -53,8 +53,7 @@ class EmailProvider(ABC):
     provider: str = "abstract"
 
     @abstractmethod
-    def send(self, message: EmailMessage, *, idempotency_key: str) -> EmailSendResult:
-        ...
+    def send(self, message: EmailMessage, *, idempotency_key: str) -> EmailSendResult: ...
 
     def healthcheck(self) -> dict[str, Any]:
         return {"provider": self.provider, "status": "ok"}

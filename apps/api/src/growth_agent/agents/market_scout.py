@@ -123,8 +123,7 @@ class MarketScoutAgent(BaseAgent[DiscoveryOutcome]):
                 # Découvert n'est pas vérifié : la qualification tranchera.
                 verification_status=VerificationStatus.UNKNOWN,
                 discovered_by=self.name,
-                retention_until=context.moment
-                + timedelta(days=settings.data_retention_days),
+                retention_until=context.moment + timedelta(days=settings.data_retention_days),
             )
             context.session.add(prospect)
             context.session.flush()

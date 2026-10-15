@@ -88,6 +88,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(system.router)
+    app.include_router(system.admin_router, prefix="/api/v1")
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(catalog.router, prefix="/api/v1")
     app.include_router(prospects.router, prefix="/api/v1")

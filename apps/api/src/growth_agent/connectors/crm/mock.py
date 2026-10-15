@@ -57,13 +57,9 @@ class MockCRMAdapter(CRMAdapter):
         self.calls.append(operation)
         if self._fail_times > 0:
             self._fail_times -= 1
-            raise RateLimitError(
-                "Quota simulé atteint.", provider=self.provider, retry_after=0.01
-            )
+            raise RateLimitError("Quota simulé atteint.", provider=self.provider, retry_after=0.01)
         if self._rate_limit_after is not None and self._call_count > self._rate_limit_after:
-            raise RateLimitError(
-                "Quota simulé atteint.", provider=self.provider, retry_after=0.01
-            )
+            raise RateLimitError("Quota simulé atteint.", provider=self.provider, retry_after=0.01)
 
     def _next_id(self, prefix: str) -> str:
         return f"{prefix}-{next(self._ids):06d}"

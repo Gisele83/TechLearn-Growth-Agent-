@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 
-from growth_agent.schemas.auth import CurrentUser
 from growth_agent.agents.base import AgentContext
 from growth_agent.agents.lead_intelligence import LeadIntelligenceAgent
 from growth_agent.agents.market_scout import MarketScoutAgent
@@ -20,6 +19,7 @@ from growth_agent.api.deps import (
     require,
     resolve_product,
 )
+from growth_agent.api.status_codes import UNPROCESSABLE_CONTENT
 from growth_agent.models.catalog import Campaign, IdealCustomerProfile
 from growth_agent.models.enums import ProspectStage, VerificationStatus
 from growth_agent.models.prospect import (
@@ -27,6 +27,7 @@ from growth_agent.models.prospect import (
     ProspectSource,
     QualificationAssessment,
 )
+from growth_agent.schemas.auth import CurrentUser
 from growth_agent.schemas.common import PagedResponse, PageMeta
 from growth_agent.schemas.prospect import (
     AssessmentOut,
@@ -104,11 +105,15 @@ def get_prospect(
             .order_by(ProspectSource.collected_at.desc())
         ).scalars()
     )
-    assessment = session.execute(
-        select(QualificationAssessment)
-        .where(QualificationAssessment.prospect_id == prospect.id)
-        .order_by(QualificationAssessment.created_at.desc())
-    ).scalars().first()
+    assessment = (
+        session.execute(
+            select(QualificationAssessment)
+            .where(QualificationAssessment.prospect_id == prospect.id)
+            .order_by(QualificationAssessment.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
 
     detail = ProspectDetailOut.model_validate(prospect)
     detail.sources = [ProspectSourceOut.model_validate(s) for s in sources]
@@ -159,7 +164,9 @@ def create_prospect(
         headcount_estimate=payload.headcount_estimate,
         contact_full_name=payload.contact_full_name,
         contact_role=payload.contact_role,
-        contact_email=normalize_email(str(payload.contact_email)) if payload.contact_email else None,
+        contact_email=normalize_email(str(payload.contact_email))
+        if payload.contact_email
+        else None,
         notes=payload.notes,
         discovered_by=f"manual:{user.email}",
         retention_until=None,
@@ -247,11 +254,15 @@ def qualify(
         icp=icp,
         use_llm=payload.use_llm,
     )
-    assessment = session.execute(
-        select(QualificationAssessment)
-        .where(QualificationAssessment.prospect_id == prospect.id)
-        .order_by(QualificationAssessment.created_at.desc())
-    ).scalars().first()
+    assessment = (
+        session.execute(
+            select(QualificationAssessment)
+            .where(QualificationAssessment.prospect_id == prospect.id)
+            .order_by(QualificationAssessment.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
     if assessment is None:  # pragma: no cover - l'agent en crée toujours une
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -296,7 +307,7 @@ def _resolve_icp(
     icp = session.get(IdealCustomerProfile, resolved_id)
     if icp is None or icp.product_id != product_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=UNPROCESSABLE_CONTENT,
             detail="Le profil cible n'appartient pas à ce produit.",
         )
     return icp

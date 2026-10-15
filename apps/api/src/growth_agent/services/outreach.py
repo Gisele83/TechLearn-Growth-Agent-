@@ -34,7 +34,6 @@ from growth_agent.services.approvals import check_send_gate
 from growth_agent.services.audit import record_audit
 from growth_agent.services.suppression import check_suppression
 
-
 #: Motifs de blocage définitifs : le brouillon ne pourra pas partir en l'état.
 #: Les autres motifs (approbation manquante, plafond de fréquence, panne du
 #: fournisseur) sont transitoires — ils sont journalisés mais ne condamnent pas

@@ -74,7 +74,9 @@ class HTTPSearchProvider(SearchProvider):
             lambda: self._client.post(self._search_path, json=payload), provider=self.provider
         )
         if response.status_code == 429:
-            raise RateLimitError("Quota du fournisseur de recherche atteint.", provider=self.provider)
+            raise RateLimitError(
+                "Quota du fournisseur de recherche atteint.", provider=self.provider
+            )
         if response.status_code >= 400:
             raise ConnectorError(
                 f"Recherche refusée ({response.status_code}).", provider=self.provider

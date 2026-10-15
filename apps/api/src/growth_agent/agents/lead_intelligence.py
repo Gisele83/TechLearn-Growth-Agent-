@@ -27,8 +27,8 @@ from growth_agent.models.prospect import (
 )
 from growth_agent.security.prompt_guard import sanitize_external_text, wrap_as_untrusted
 from growth_agent.services.audit import record_audit
-from growth_agent.services.scoring import ScoringInput, ScoringResult, score_prospect
 from growth_agent.services.dedupe import strip_accents
+from growth_agent.services.scoring import ScoringInput, ScoringResult, score_prospect
 
 SYSTEM_PROMPT = (
     "Tu analyses des extraits de pages publiques pour une équipe commerciale. "
@@ -267,5 +267,3 @@ def _dedupe_preserving_order(values: list[str]) -> list[str]:
             seen.add(key)
             out.append(value)
     return out
-
-

@@ -135,8 +135,7 @@ def compute_product_kpis(
         qualified=sum(
             total
             for stage, total in stages.items()
-            if stage
-            not in {ProspectStage.DISCOVERED, ProspectStage.DISQUALIFIED}
+            if stage not in {ProspectStage.DISCOVERED, ProspectStage.DISQUALIFIED}
         ),
         contacted=counts.get(OutreachEventType.SENT, 0),
         replied=counts.get(OutreachEventType.REPLIED, 0),

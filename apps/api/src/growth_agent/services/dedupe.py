@@ -37,9 +37,30 @@ PUBLIC_EMAIL_DOMAINS = frozenset(
 )
 
 _LEGAL_SUFFIXES = (
-    "sarl", "sa", "sas", "sasu", "eurl", "sci", "snc", "gie", "scop",
-    "ltd", "llc", "inc", "plc", "gmbh", "bv", "nv", "spa", "srl",
-    "etablissement", "etablissements", "ets", "societe", "ste", "cie",
+    "sarl",
+    "sa",
+    "sas",
+    "sasu",
+    "eurl",
+    "sci",
+    "snc",
+    "gie",
+    "scop",
+    "ltd",
+    "llc",
+    "inc",
+    "plc",
+    "gmbh",
+    "bv",
+    "nv",
+    "spa",
+    "srl",
+    "etablissement",
+    "etablissements",
+    "ets",
+    "societe",
+    "ste",
+    "cie",
 )
 
 _WHITESPACE = re.compile(r"\s+")

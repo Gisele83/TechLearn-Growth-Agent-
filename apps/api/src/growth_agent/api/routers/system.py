@@ -6,12 +6,17 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 
 from growth_agent import __version__
+from growth_agent.api.deps import SessionDep, SettingsDep, require
 from growth_agent.schemas.auth import CurrentUser
-from growth_agent.api.deps import CurrentUserDep, SessionDep, SettingsDep, require
 from growth_agent.schemas.common import HealthResponse
 from growth_agent.security.rbac import CAN_READ
 
+#: Sonde publique, montée à la racine : un répartiteur de charge ou un
+#: conteneur doit pouvoir l'interroger sans jeton ni préfixe de version.
 router = APIRouter(tags=["système"])
+
+#: Endpoints de supervision authentifiés, montés sous /api/v1.
+admin_router = APIRouter(prefix="/system", tags=["système"])
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -40,7 +45,7 @@ def health(session: SessionDep, settings: SettingsDep) -> HealthResponse:
     )
 
 
-@router.get("/system/integrations")
+@admin_router.get("/integrations")
 def integrations(
     settings: SettingsDep,
     _: CurrentUser = Depends(require(CAN_READ)),
@@ -54,7 +59,9 @@ def integrations(
         "crm": {
             "provider": settings.crm_provider,
             "credential_configured": bool(settings.crm_api_token),
-            "mode": "réel" if settings.crm_provider != "mock" and settings.crm_api_token else "simulé",
+            "mode": "réel"
+            if settings.crm_provider != "mock" and settings.crm_api_token
+            else "simulé",
         },
         "llm": {
             "provider": settings.llm_provider,

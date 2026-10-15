@@ -55,9 +55,7 @@ def test_complete_prospect_scores_full_and_is_verified():
 def test_empty_prospect_scores_zero_and_stays_unknown():
     """Aucune donnée ne vaut aucun point : on ne suppose jamais au bénéfice
     du prospect."""
-    result = score_prospect(
-        ScoringInput(product_code="maintrix", organization_name="Inconnue")
-    )
+    result = score_prospect(ScoringInput(product_code="maintrix", organization_name="Inconnue"))
     assert result.total_score == 0
     assert result.verification_status == VerificationStatus.UNKNOWN
     assert len(result.unknowns) == 5
@@ -114,9 +112,7 @@ def test_sector_outside_target_is_rejected_criterion():
 
 
 def test_exclusion_signal_rejects_the_whole_prospect():
-    result = score_prospect(
-        _complete_input(exclusion_signals=["Les Palmiers"])
-    )
+    result = score_prospect(_complete_input(exclusion_signals=["Les Palmiers"]))
     assert result.verification_status == VerificationStatus.REJECTED
     assert "écarté" in result.rationale
 

@@ -56,8 +56,7 @@ class BaseAgent(ABC, Generic[ResultT]):
     guardrail: str = ""
 
     @abstractmethod
-    def run(self, context: AgentContext, **kwargs: Any) -> AgentResult[ResultT]:
-        ...
+    def run(self, context: AgentContext, **kwargs: Any) -> AgentResult[ResultT]: ...
 
     def execute(self, context: AgentContext, **kwargs: Any) -> AgentResult[ResultT]:
         """Exécute `run` en journalisant l'action, succès comme échec."""

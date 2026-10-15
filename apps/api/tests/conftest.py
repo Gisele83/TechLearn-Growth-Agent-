@@ -78,9 +78,7 @@ def seeded(session) -> dict[str, object]:
     """Produits, profils cibles, campagnes, gabarits et comptes de démonstration."""
     seed_demo_data(session)
     session.commit()
-    return {
-        p.code: p for p in session.query(Product).all()
-    }
+    return {p.code: p for p in session.query(Product).all()}
 
 
 @pytest.fixture
@@ -104,9 +102,7 @@ def icp_educore(session, product_educore) -> IdealCustomerProfile:
 
 @pytest.fixture
 def campaign_educore(session, product_educore) -> Campaign:
-    return (
-        session.query(Campaign).filter(Campaign.product_id == product_educore.id).one()
-    )
+    return session.query(Campaign).filter(Campaign.product_id == product_educore.id).one()
 
 
 @pytest.fixture

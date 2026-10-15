@@ -7,7 +7,6 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 
-from growth_agent.schemas.auth import CurrentUser
 from growth_agent.agents.base import AgentContext
 from growth_agent.agents.conversation_analyst import ConversationAnalyst
 from growth_agent.agents.outreach_composer import OutreachComposerAgent
@@ -19,6 +18,7 @@ from growth_agent.api.deps import (
     require,
     resolve_product,
 )
+from growth_agent.api.status_codes import UNPROCESSABLE_CONTENT
 from growth_agent.models.catalog import Campaign, Product
 from growth_agent.models.enums import ApprovalSubject, DraftStatus, ProspectStage
 from growth_agent.models.outreach import (
@@ -27,6 +27,7 @@ from growth_agent.models.outreach import (
     SuppressionEntry,
 )
 from growth_agent.models.prospect import ProspectCandidate
+from growth_agent.schemas.auth import CurrentUser
 from growth_agent.schemas.outreach import (
     ApprovalDecisionIn,
     ApprovalOut,
@@ -43,7 +44,11 @@ from growth_agent.schemas.outreach import (
     TemplateOut,
 )
 from growth_agent.security.rbac import CAN_ADMINISTER, CAN_APPROVE, CAN_OPERATE, CAN_READ
-from growth_agent.services.approvals import decide_approval, list_pending_approvals, request_approval
+from growth_agent.services.approvals import (
+    decide_approval,
+    list_pending_approvals,
+    request_approval,
+)
 from growth_agent.services.audit import record_audit
 from growth_agent.services.outreach import send_draft
 from growth_agent.services.suppression import add_suppression, list_suppressions
@@ -158,7 +163,7 @@ def compose_draft(
     draft = result.value.draft
     if draft is None:  # pragma: no cover - l'agent lève sinon
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=UNPROCESSABLE_CONTENT,
             detail="Aucun brouillon n'a pu être produit.",
         )
     return draft
@@ -325,9 +330,7 @@ def create_suppression(
     session: SessionDep,
     user: CurrentUser = Depends(require(CAN_OPERATE)),
 ):
-    product_id = (
-        resolve_product(session, payload.product_code).id if payload.product_code else None
-    )
+    product_id = resolve_product(session, payload.product_code).id if payload.product_code else None
     entry = add_suppression(
         session,
         value=payload.value,
@@ -415,5 +418,3 @@ def _require_draft(session, draft_id: uuid.UUID) -> MessageDraft:
     if draft is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brouillon inconnu.")
     return draft
-
-

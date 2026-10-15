@@ -182,9 +182,7 @@ class SuppressionEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     product_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("products.id", ondelete="CASCADE"), nullable=True
     )
-    scope: Mapped[str] = mapped_column(
-        String(16), default=SuppressionScope.GLOBAL, nullable=False
-    )
+    scope: Mapped[str] = mapped_column(String(16), default=SuppressionScope.GLOBAL, nullable=False)
     value_type: Mapped[str] = mapped_column(String(16), default="email", nullable=False)
     normalized_value: Mapped[str] = mapped_column(String(256), nullable=False)
     reason: Mapped[str] = mapped_column(String(32), nullable=False)

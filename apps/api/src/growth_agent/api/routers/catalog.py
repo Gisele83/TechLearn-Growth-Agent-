@@ -7,9 +7,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
-from growth_agent.schemas.auth import CurrentUser
-from growth_agent.api.deps import CurrentUserDep, SessionDep, require, resolve_product
+from growth_agent.api.deps import SessionDep, require, resolve_product
+from growth_agent.api.status_codes import UNPROCESSABLE_CONTENT
 from growth_agent.models.catalog import Campaign, IdealCustomerProfile, Product
+from growth_agent.schemas.auth import CurrentUser
 from growth_agent.schemas.catalog import (
     CampaignIn,
     CampaignOut,
@@ -56,7 +57,7 @@ def create_icp(
         and payload.min_headcount > payload.max_headcount
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=UNPROCESSABLE_CONTENT,
             detail="L'effectif minimum ne peut pas dépasser l'effectif maximum.",
         )
     icp = IdealCustomerProfile(
@@ -111,7 +112,7 @@ def create_campaign(
         # Un profil cible ne peut pas franchir la frontière entre produits.
         if icp is None or icp.product_id != product.id:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=UNPROCESSABLE_CONTENT,
                 detail="Le profil cible n'appartient pas à ce produit.",
             )
     campaign = Campaign(

@@ -155,8 +155,4 @@ def list_suppressions(
     entries = list(session.execute(statement).scalars())
     if product_id is None:
         return entries
-    return [
-        e
-        for e in entries
-        if e.scope == SuppressionScope.GLOBAL or e.product_id == product_id
-    ]
+    return [e for e in entries if e.scope == SuppressionScope.GLOBAL or e.product_id == product_id]

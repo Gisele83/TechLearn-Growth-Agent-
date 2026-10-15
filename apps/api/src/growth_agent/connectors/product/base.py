@@ -88,8 +88,7 @@ class ProductAdapter(ABC):
         """État courant d'une organisation, ou None si elle est inconnue."""
 
     @abstractmethod
-    def healthcheck(self) -> dict[str, Any]:
-        ...
+    def healthcheck(self) -> dict[str, Any]: ...
 
     @property
     def is_read_only(self) -> bool:

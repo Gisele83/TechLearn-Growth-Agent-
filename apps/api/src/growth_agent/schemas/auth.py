@@ -12,7 +12,8 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str = "bearer"
+    # « bearer » est le type de jeton OAuth 2.0, pas un secret.
+    token_type: str = "bearer"  # noqa: S105
     expires_in_minutes: int
     role: str
     email: str

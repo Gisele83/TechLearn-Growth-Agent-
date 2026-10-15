@@ -139,21 +139,24 @@ class HTTPProductAdapter(ProductAdapter):
         return PilotSnapshot(
             external_org_ref=external_org_ref,
             pilot_status=_as_enum(PilotStatus, data.get("pilot_status"), PilotStatus.NOT_INVITED),
-            license_status=_as_enum(
-                LicenseStatus, data.get("license_status"), LicenseStatus.NONE
-            ),
+            license_status=_as_enum(LicenseStatus, data.get("license_status"), LicenseStatus.NONE),
             renewal_date=_parse_datetime(data.get("renewal_date")),
             last_activity_at=_parse_datetime(data.get("last_activity_at")),
-            shareable_feedback=[
-                str(item) for item in data.get("shareable_feedback", []) if item
-            ][:20],
+            shareable_feedback=[str(item) for item in data.get("shareable_feedback", []) if item][
+                :20
+            ],
         )
 
     def healthcheck(self) -> dict[str, Any]:
         try:
             self._get("/growth/v1/health")
         except ConnectorError as exc:
-            return {"product": self.product_code, "mode": self.mode, "status": "error", "detail": str(exc)}
+            return {
+                "product": self.product_code,
+                "mode": self.mode,
+                "status": "error",
+                "detail": str(exc),
+            }
         return {"product": self.product_code, "mode": self.mode, "status": "ok", "read_only": True}
 
     def close(self) -> None:

@@ -206,7 +206,10 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             object_id=draft.id,
             product_code=product.code,
             outcome="blocked" if blocked_reason else "success",
-            metadata={"blocked_reason": blocked_reason, "template": template.slug if template else ""},
+            metadata={
+                "blocked_reason": blocked_reason,
+                "template": template.slug if template else "",
+            },
             now=context.moment,
         )
 
@@ -255,7 +258,9 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             },
         )
         try:
-            return self._llm.complete_structured(request, ComposedMessage), self._llm.model_reference
+            return self._llm.complete_structured(
+                request, ComposedMessage
+            ), self._llm.model_reference
         except (LLMSchemaError, Exception):
             return None, self._llm.model_reference
 
@@ -263,11 +268,15 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
 def _latest_need_summary(context: AgentContext, prospect: ProspectCandidate) -> str:
     from growth_agent.models.prospect import QualificationAssessment
 
-    assessment = context.session.execute(
-        select(QualificationAssessment)
-        .where(QualificationAssessment.prospect_id == prospect.id)
-        .order_by(QualificationAssessment.created_at.desc())
-    ).scalars().first()
+    assessment = (
+        context.session.execute(
+            select(QualificationAssessment)
+            .where(QualificationAssessment.prospect_id == prospect.id)
+            .order_by(QualificationAssessment.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
     if assessment is None:
         return ""
     for criterion in assessment.criteria:

@@ -160,7 +160,9 @@ class MockEduCoreAdapter(_BaseMockProductAdapter):
             status="active",
             payload={
                 "shareable": True,
-                "comment": "Les inscriptions de rentrée ont pris deux jours au lieu de deux semaines.",
+                "comment": (
+                    "Les inscriptions de rentrée ont pris deux jours au lieu de deux semaines."
+                ),
             },
         )
         self._add_event(

@@ -36,29 +36,39 @@ def test_product_suppression_does_not_leak_to_other_product(
         product_id=product_educore.id,
     )
     session.flush()
-    assert check_suppression(
-        session, email="refus-educore@exemple.example.org", product_id=product_educore.id
-    ).suppressed is True
-    assert check_suppression(
-        session, email="refus-educore@exemple.example.org", product_id=product_maintrix.id
-    ).allowed is True
+    assert (
+        check_suppression(
+            session, email="refus-educore@exemple.example.org", product_id=product_educore.id
+        ).suppressed
+        is True
+    )
+    assert (
+        check_suppression(
+            session, email="refus-educore@exemple.example.org", product_id=product_maintrix.id
+        ).allowed
+        is True
+    )
 
 
 def test_domain_suppression_blocks_every_address_of_that_domain(session, product_educore):
     add_suppression(session, value="groupe-ferme.example.org", scope=SuppressionScope.GLOBAL)
     session.flush()
     for address in ("a@groupe-ferme.example.org", "direction@groupe-ferme.example.org"):
-        assert check_suppression(
-            session, email=address, product_id=product_educore.id
-        ).suppressed is True
+        assert (
+            check_suppression(session, email=address, product_id=product_educore.id).suppressed
+            is True
+        )
 
 
 def test_suppression_matching_is_case_insensitive(session, product_educore):
     add_suppression(session, value="Refus.Majuscule@Exemple.example.org")
     session.flush()
-    assert check_suppression(
-        session, email="REFUS.MAJUSCULE@EXEMPLE.EXAMPLE.ORG", product_id=product_educore.id
-    ).suppressed is True
+    assert (
+        check_suppression(
+            session, email="REFUS.MAJUSCULE@EXEMPLE.EXAMPLE.ORG", product_id=product_educore.id
+        ).suppressed
+        is True
+    )
 
 
 def test_missing_or_invalid_recipient_is_treated_as_blocking(session, product_educore):

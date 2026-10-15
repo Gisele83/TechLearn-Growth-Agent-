@@ -55,17 +55,40 @@ VERIFIED_MIN_SCORE = 50
 
 DECISION_MAKER_KEYWORDS: dict[str, tuple[str, ...]] = {
     "maintrix": (
-        "maintenance", "technique", "production", "exploitation", "usine",
-        "industriel", "operations", "qhse", "travaux", "methodes",
+        "maintenance",
+        "technique",
+        "production",
+        "exploitation",
+        "usine",
+        "industriel",
+        "operations",
+        "qhse",
+        "travaux",
+        "methodes",
     ),
     "educore": (
-        "directeur", "directrice", "chef d'etablissement", "proviseur",
-        "promoteur", "administratif", "scolarite", "secretaire general",
-        "intendant", "responsable pedagogique",
+        "directeur",
+        "directrice",
+        "chef d'etablissement",
+        "proviseur",
+        "promoteur",
+        "administratif",
+        "scolarite",
+        "secretaire general",
+        "intendant",
+        "responsable pedagogique",
     ),
 }
 
-EXECUTIVE_KEYWORDS = ("directeur", "directrice", "responsable", "chef", "president", "gerant", "promoteur")
+EXECUTIVE_KEYWORDS = (
+    "directeur",
+    "directrice",
+    "responsable",
+    "chef",
+    "president",
+    "gerant",
+    "promoteur",
+)
 
 
 @dataclass(slots=True)
@@ -150,6 +173,19 @@ def score_prospect(data: ScoringInput) -> ScoringResult:
         _score_potential(data),
     ]
 
+    # Sans aucune source rattachée, rien n'est « vérifié » — pas même ce qui
+    # semble établi par les données structurées, puisque ces données viennent
+    # elles aussi de quelque part. On rétrograde donc tous les critères en
+    # hypothèse. C'est ce qui empêche un prospect sans provenance d'obtenir le
+    # statut `verified`, seul statut qui autorise la prospection.
+    if not data.evidence_urls:
+        for criterion in criteria:
+            if criterion.status == VerificationStatus.VERIFIED:
+                criterion.status = VerificationStatus.HYPOTHESIS
+                criterion.comment = (
+                    f"{criterion.comment} Aucune source rattachée : reste une hypothèse."
+                ).strip()
+
     total = sum(c.points for c in criteria)
     evidence_points = sum(c.points for c in criteria if c.status == VerificationStatus.VERIFIED)
     unknowns = [c.label for c in criteria if c.status == VerificationStatus.UNKNOWN]
@@ -217,7 +253,9 @@ def _score_sector(data: ScoringInput) -> CriterionScore:
                 points=round(maximum * 0.6),
                 max_points=maximum,
                 status=VerificationStatus.HYPOTHESIS,
-                comment=f"Secteur « {data.sector} » proche du profil cible, sans correspondance exacte.",
+                comment=(
+                    f"Secteur « {data.sector} » proche du profil cible, sans correspondance exacte."
+                ),
             )
         return CriterionScore(
             key="sector_fit",
@@ -308,7 +346,9 @@ def _score_decision_maker(data: ScoringInput) -> CriterionScore:
             points=round(maximum * 0.25),
             max_points=maximum,
             status=VerificationStatus.HYPOTHESIS,
-            comment="Adresse de messagerie grand public : rattachement à l'organisation non démontré.",
+            comment=(
+                "Adresse de messagerie grand public : rattachement à l'organisation non démontré."
+            ),
         )
 
     keywords = DECISION_MAKER_KEYWORDS.get(data.product_code.lower(), ())
@@ -323,7 +363,10 @@ def _score_decision_maker(data: ScoringInput) -> CriterionScore:
             max_points=maximum,
             status=VerificationStatus.VERIFIED,
             evidence=data.evidence_urls[:2],
-            comment=f"Fonction « {data.contact_role} » pertinente, adresse au domaine de l'organisation.",
+            comment=(
+                f"Fonction « {data.contact_role} » pertinente, adresse au "
+                "domaine de l'organisation."
+            ),
         )
     if domain_matches and is_executive:
         return CriterionScore(
@@ -426,7 +469,10 @@ def _score_potential(data: ScoringInput) -> CriterionScore:
             points=round(maximum * 0.6),
             max_points=maximum,
             status=VerificationStatus.VERIFIED,
-            comment=f"{headcount} personnes : au-dessus de la cible, cycle de vente probablement plus long.",
+            comment=(
+                f"{headcount} personnes : au-dessus de la cible, cycle de "
+                "vente probablement plus long."
+            ),
         )
     return CriterionScore(
         key="potential",
@@ -453,7 +499,9 @@ def _is_excluded(data: ScoringInput) -> bool:
             )
         )
     ).lower()
-    return any(strip_accents(signal).lower() in haystack for signal in data.exclusion_signals if signal)
+    return any(
+        strip_accents(signal).lower() in haystack for signal in data.exclusion_signals if signal
+    )
 
 
 def _shares_token(left: str, right: str) -> bool:

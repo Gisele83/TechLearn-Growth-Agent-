@@ -37,9 +37,7 @@ def verify_webhook_signature(
 ) -> None:
     """Lève `WebhookVerificationError` si la requête n'est pas authentique."""
     if not secret:
-        raise WebhookVerificationError(
-            "Aucun secret configuré pour ce produit : webhook refusé."
-        )
+        raise WebhookVerificationError("Aucun secret configuré pour ce produit : webhook refusé.")
     if not signature or not timestamp:
         raise WebhookVerificationError("Signature ou horodatage manquant.")
 
@@ -51,7 +49,8 @@ def verify_webhook_signature(
     current = now if now is not None else time.time()
     if abs(current - sent_at) > tolerance_seconds:
         raise WebhookVerificationError(
-            f"Horodatage hors fenêtre de {tolerance_seconds} s : requête rejouée ou horloge décalée."
+            f"Horodatage hors fenêtre de {tolerance_seconds} s : "
+            "requête rejouée ou horloge décalée."
         )
 
     expected = compute_signature(secret, timestamp, body)

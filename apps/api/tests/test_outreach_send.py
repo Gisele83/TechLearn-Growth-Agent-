@@ -58,7 +58,11 @@ def _events(session, draft, event_type):
 def test_send_without_approval_is_refused(session, product_educore, make_prospect, email, settings):
     draft = _make_draft(session, product_educore, make_prospect(product=product_educore))
     outcome = send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.sent is False
     assert outcome.reason_code == "not_approved"
@@ -76,7 +80,11 @@ def test_send_to_suppressed_contact_is_refused(
     session.flush()
 
     outcome = send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.sent is False
     assert outcome.reason_code == "suppressed"
@@ -95,7 +103,11 @@ def test_suppression_is_checked_before_approval(
     session.flush()
 
     outcome = send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.reason_code == "suppressed"
 
@@ -106,7 +118,11 @@ def test_approved_draft_is_sent_but_simulated(
     draft = _make_draft(session, product_educore, make_prospect(product=product_educore))
     _approve(session, draft)
     outcome = send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.sent is True
     assert outcome.simulated is True, "sans autorisation d'envoi réel, l'envoi doit être simulé"
@@ -121,7 +137,11 @@ def test_sent_message_carries_one_click_unsubscribe_headers(
     draft = _make_draft(session, product_educore, make_prospect(product=product_educore))
     _approve(session, draft)
     send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     message = email.outbox[0]
     assert "List-Unsubscribe" in message.headers
@@ -134,10 +154,18 @@ def test_resending_the_same_draft_is_refused(
     draft = _make_draft(session, product_educore, make_prospect(product=product_educore))
     _approve(session, draft)
     send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     outcome = send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.sent is False
     assert outcome.reason_code == "already_sent"
@@ -153,44 +181,59 @@ def test_identical_content_to_same_contact_is_deduplicated(
     first = _make_draft(session, product_educore, prospect)
     _approve(session, first)
     send_draft(
-        session, draft=first, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=first,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
 
     second = _make_draft(session, product_educore, prospect)
     _approve(session, second)
     outcome = send_draft(
-        session, draft=second, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=second,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.sent is False
     assert outcome.reason_code == "duplicate"
     assert len(email.outbox) == 1
 
 
-def test_contact_frequency_cap_is_enforced(
-    session, product_educore, make_prospect, email
-):
+def test_contact_frequency_cap_is_enforced(session, product_educore, make_prospect, email):
     """Au-delà du plafond mensuel par contact, l'envoi est refusé."""
     capped = Settings(email_max_per_contact_per_30_days=1)
     prospect = make_prospect(product=product_educore)
 
     first = _make_draft(session, product_educore, prospect, subject="Premier")
     _approve(session, first)
-    assert send_draft(
-        session, draft=first, email_provider=email, actor="moi@exemple.example.org", settings=capped
-    ).sent is True
+    assert (
+        send_draft(
+            session,
+            draft=first,
+            email_provider=email,
+            actor="moi@exemple.example.org",
+            settings=capped,
+        ).sent
+        is True
+    )
 
     second = _make_draft(session, product_educore, prospect, subject="Deuxième")
     _approve(session, second)
     outcome = send_draft(
-        session, draft=second, email_provider=email, actor="moi@exemple.example.org", settings=capped
+        session,
+        draft=second,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=capped,
     )
     assert outcome.sent is False
     assert outcome.reason_code == "frequency_contact"
 
 
-def test_frequency_block_is_transient_not_terminal(
-    session, product_educore, make_prospect, email
-):
+def test_frequency_block_is_transient_not_terminal(session, product_educore, make_prospect, email):
     """Un plafond atteint n'est pas une faute du message : le brouillon n'est
     pas condamné et repart une fois la fenêtre écoulée.
 
@@ -209,7 +252,11 @@ def test_frequency_block_is_transient_not_terminal(
     second = _make_draft(session, product_educore, prospect, subject="Deuxième")
     _approve(session, second)
     send_draft(
-        session, draft=second, email_provider=email, actor="moi@exemple.example.org", settings=capped
+        session,
+        draft=second,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=capped,
     )
     assert second.status != DraftStatus.BLOCKED
 
@@ -261,7 +308,11 @@ def test_campaign_daily_cap_is_enforced(
     second = _make_draft(session, product_educore, second_prospect)
     _approve(session, second)
     outcome = send_draft(
-        session, draft=second, email_provider=email, actor="moi@exemple.example.org", settings=capped
+        session,
+        draft=second,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=capped,
     )
     assert outcome.reason_code == "frequency_campaign"
 
@@ -273,7 +324,11 @@ def test_draft_without_recipient_is_refused(
     draft = _make_draft(session, product_educore, prospect)
     _approve(session, draft)
     outcome = send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
     assert outcome.reason_code == "no_recipient"
 
@@ -285,13 +340,13 @@ def test_every_block_leaves_an_auditable_event(
 
     draft = _make_draft(session, product_educore, make_prospect(product=product_educore))
     send_draft(
-        session, draft=draft, email_provider=email, actor="moi@exemple.example.org", settings=settings
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=settings,
     )
-    audits = (
-        session.query(AuditEvent)
-        .filter(AuditEvent.action == "outreach.send_blocked")
-        .all()
-    )
+    audits = session.query(AuditEvent).filter(AuditEvent.action == "outreach.send_blocked").all()
     assert len(audits) == 1
     assert audits[0].outcome == "blocked"
 
@@ -307,9 +362,7 @@ def test_real_sending_requires_both_flag_and_provider(enabled):
     assert settings.can_send_email() is False
 
 
-def test_expired_approval_blocks_the_send(
-    session, product_educore, make_prospect, email, settings
-):
+def test_expired_approval_blocks_the_send(session, product_educore, make_prospect, email, settings):
     """Une validation vieille de plus de 72 heures ne vaut plus : il faut
     refaire valider, pas réutiliser un accord périmé."""
     draft = _make_draft(session, product_educore, make_prospect(product=product_educore))

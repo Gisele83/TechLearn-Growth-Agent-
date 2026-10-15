@@ -94,7 +94,11 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> dict[s
                 "Énergie",
                 "Mécanique de précision",
             ],
-            target_roles=["Responsable maintenance", "Directeur technique", "Responsable production"],
+            target_roles=[
+                "Responsable maintenance",
+                "Directeur technique",
+                "Responsable production",
+            ],
             min_headcount=50,
             max_headcount=2000,
             need_signals=["maintenance", "GMAO", "arrêts machine", "modernisation", "digitalis"],
@@ -145,9 +149,7 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> dict[s
         ),
     }.items():
         existing = session.execute(
-            select(Campaign).where(
-                Campaign.product_id == products[code].id, Campaign.slug == slug
-            )
+            select(Campaign).where(Campaign.product_id == products[code].id, Campaign.slug == slug)
         ).scalar_one_or_none()
         if existing is not None:
             continue

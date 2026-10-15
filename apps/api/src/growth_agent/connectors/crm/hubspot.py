@@ -232,9 +232,7 @@ class HubSpotCRMAdapter(CRMAdapter):
             )
             company.remote_id = existing
             return company
-        data = self._request(
-            "POST", "/crm/v3/objects/companies", json={"properties": properties}
-        )
+        data = self._request("POST", "/crm/v3/objects/companies", json={"properties": properties})
         company.remote_id = data.get("id")
         return company
 

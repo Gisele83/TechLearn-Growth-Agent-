@@ -50,9 +50,7 @@ class GrowthAnalystAgent(BaseAgent[GrowthReport]):
     def run(  # type: ignore[override]
         self, context: AgentContext, *, window_days: int = 90, **_: Any
     ) -> AgentResult[GrowthReport]:
-        products = list(
-            context.session.execute(select(Product).order_by(Product.code)).scalars()
-        )
+        products = list(context.session.execute(select(Product).order_by(Product.code)).scalars())
         report = GrowthReport()
 
         for product in products:

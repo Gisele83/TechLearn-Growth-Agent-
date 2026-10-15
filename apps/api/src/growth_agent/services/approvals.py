@@ -125,7 +125,8 @@ def decide_approval(
         raise ApprovalError("Demande d'approbation introuvable.")
     if approval.decision != ApprovalDecision.PENDING:
         raise ApprovalError(
-            f"Demande déjà traitée (décision « {approval.decision} ») : elle ne peut pas être rejugée."
+            f"Demande déjà traitée (décision « {approval.decision} ») : "
+            "elle ne peut pas être rejugée."
         )
     if approval.expires_at and approval.expires_at < moment:
         approval.decision = ApprovalDecision.EXPIRED
@@ -202,19 +203,27 @@ def check_send_gate(
             reason=f"Statut « {draft.status} » : une approbation est requise avant envoi.",
         )
 
-    approval = session.execute(
-        select(ApprovalRequest)
-        .where(
-            ApprovalRequest.draft_id == draft.id,
-            ApprovalRequest.decision == ApprovalDecision.APPROVED,
+    approval = (
+        session.execute(
+            select(ApprovalRequest)
+            .where(
+                ApprovalRequest.draft_id == draft.id,
+                ApprovalRequest.decision == ApprovalDecision.APPROVED,
+            )
+            .order_by(ApprovalRequest.decided_at.desc())
         )
-        .order_by(ApprovalRequest.decided_at.desc())
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     if approval is None:
-        return ApprovalGate(allowed=False, reason="Aucune approbation enregistrée pour ce brouillon.")
+        return ApprovalGate(
+            allowed=False, reason="Aucune approbation enregistrée pour ce brouillon."
+        )
     if approval.expires_at and approval.expires_at < moment:
-        return ApprovalGate(allowed=False, reason="L'approbation a expiré.", approval_id=approval.id)
+        return ApprovalGate(
+            allowed=False, reason="L'approbation a expiré.", approval_id=approval.id
+        )
     if compute_draft_digest(draft) != approval.payload_digest:
         return ApprovalGate(
             allowed=False,

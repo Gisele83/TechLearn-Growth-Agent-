@@ -14,7 +14,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import CHAR, DateTime, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.types import TypeDecorator
 
 

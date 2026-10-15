@@ -156,11 +156,13 @@ def _match_prospect(
     """
     if not external_org_ref:
         return None
-    return context.session.execute(
-        select(ProspectCandidate).where(
-            ProspectCandidate.product_id == product.id,
-            ProspectCandidate.notes.contains(external_org_ref),
+    return (
+        context.session.execute(
+            select(ProspectCandidate).where(
+                ProspectCandidate.product_id == product.id,
+                ProspectCandidate.notes.contains(external_org_ref),
+            )
         )
-    ).scalars().first()
-
-
+        .scalars()
+        .first()
+    )

@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from growth_agent.agents.outreach_composer import CompositionRefused
 from growth_agent.agents.proposal_assistant import PricingError
+from growth_agent.api.status_codes import UNPROCESSABLE_CONTENT
 from growth_agent.connectors.base import ConnectorDisabledError, ConnectorError, RateLimitError
 from growth_agent.connectors.email.base import EmailSendingDisabled
 from growth_agent.security.rbac import PermissionDenied
@@ -69,14 +70,14 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(CompositionRefused)
     async def _composition_refused(_: Request, exc: CompositionRefused) -> JSONResponse:
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=UNPROCESSABLE_CONTENT,
             content=_payload("composition_refused", str(exc)),
         )
 
     @app.exception_handler(PricingError)
     async def _pricing_error(_: Request, exc: PricingError) -> JSONResponse:
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=UNPROCESSABLE_CONTENT,
             content=_payload("pricing_error", str(exc)),
         )
 
@@ -139,7 +140,7 @@ def register_error_handlers(app: FastAPI) -> None:
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
         fields = sorted({".".join(str(p) for p in e["loc"][1:]) for e in exc.errors()})
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=UNPROCESSABLE_CONTENT,
             content=_payload(
                 "validation_error",
                 "Requête invalide.",

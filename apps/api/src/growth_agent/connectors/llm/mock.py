@@ -132,7 +132,17 @@ class MockLLMProvider(LLMProvider):
         rules: list[tuple[str, tuple[str, ...]]] = [
             ("opt_out", ("stop", "désinscri", "desinscri", "ne plus", "unsubscribe")),
             ("not_interested", ("pas intéress", "pas interess", "non merci", "refus")),
-            ("interested", ("intéress", "interess", "démonstration", "demonstration", "rendez-vous", "disponible")),
+            (
+                "interested",
+                (
+                    "intéress",
+                    "interess",
+                    "démonstration",
+                    "demonstration",
+                    "rendez-vous",
+                    "disponible",
+                ),
+            ),
             ("question", ("combien", "quel", "comment", "pourquoi", "?")),
             ("out_of_office", ("absent", "congé", "conge", "vacances")),
             ("referral", ("mon collègue", "mon collegue", "contactez", "adressez-vous")),

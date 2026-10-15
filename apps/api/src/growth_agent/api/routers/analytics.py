@@ -7,7 +7,6 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 
-from growth_agent.schemas.auth import CurrentUser
 from growth_agent.agents.base import AgentContext
 from growth_agent.agents.customer_success import CustomerSuccessAgent
 from growth_agent.agents.growth_analyst import GrowthAnalystAgent
@@ -24,6 +23,7 @@ from growth_agent.schemas.analytics import (
     ProductKPIOut,
     TimeseriesPoint,
 )
+from growth_agent.schemas.auth import CurrentUser
 from growth_agent.schemas.common import AuditEventOut
 from growth_agent.security.rbac import CAN_OPERATE, CAN_READ
 from growth_agent.services.analytics import (
@@ -57,8 +57,7 @@ def kpis(
             )
         ]
     return [
-        ProductKPIOut(**k.as_dict())
-        for k in compute_all_kpis(session, window_days=window_days)
+        ProductKPIOut(**k.as_dict()) for k in compute_all_kpis(session, window_days=window_days)
     ]
 
 

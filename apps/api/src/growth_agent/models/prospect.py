@@ -67,9 +67,7 @@ class ProspectCandidate(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     contact_email: Mapped[str | None] = mapped_column(String(256), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    stage: Mapped[str] = mapped_column(
-        String(24), default=ProspectStage.DISCOVERED, nullable=False
-    )
+    stage: Mapped[str] = mapped_column(String(24), default=ProspectStage.DISCOVERED, nullable=False)
     verification_status: Mapped[str] = mapped_column(
         String(16), default=VerificationStatus.UNKNOWN, nullable=False
     )
@@ -78,9 +76,7 @@ class ProspectCandidate(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    retention_until: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), nullable=True
-    )
+    retention_until: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     discovered_by: Mapped[str] = mapped_column(String(64), default="manual", nullable=False)
 
     sources: Mapped[list[ProspectSource]] = relationship(
@@ -156,19 +152,13 @@ class CRMMapping(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     __tablename__ = "crm_mappings"
     __table_args__ = (
-        UniqueConstraint(
-            "crm_provider", "object_type", "local_id", name="uq_crm_mapping_local"
-        ),
-        UniqueConstraint(
-            "crm_provider", "object_type", "remote_id", name="uq_crm_mapping_remote"
-        ),
+        UniqueConstraint("crm_provider", "object_type", "local_id", name="uq_crm_mapping_local"),
+        UniqueConstraint("crm_provider", "object_type", "remote_id", name="uq_crm_mapping_remote"),
     )
 
     crm_provider: Mapped[str] = mapped_column(String(32), nullable=False)
     object_type: Mapped[str] = mapped_column(String(32), nullable=False)
     local_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
     remote_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    last_synced_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), nullable=True
-    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     sync_digest: Mapped[str] = mapped_column(String(64), default="", nullable=False)

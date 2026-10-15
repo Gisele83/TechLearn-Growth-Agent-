@@ -70,9 +70,7 @@ class Campaign(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(96), nullable=False)
     name: Mapped[str] = mapped_column(String(192), nullable=False)
     objective: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(16), default=CampaignStatus.DRAFT, nullable=False
-    )
+    status: Mapped[str] = mapped_column(String(16), default=CampaignStatus.DRAFT, nullable=False)
     legal_regime: Mapped[str] = mapped_column(String(8), default="FR", nullable=False)
     starts_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     ends_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

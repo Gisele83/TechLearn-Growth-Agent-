@@ -124,6 +124,7 @@ scripts/             Outillage (recherche de secrets)
 | [Campagnes pilotes](docs/06-campagnes-pilotes.md) | Profils, scripts, suivi |
 | [Politique de rétention](docs/07-politique-de-retention.md) | Durées, purge, garde-fous, sauvegardes |
 | [**Dépendances et autorisations**](docs/11-dependances-autorisation.md) | Ce qui exigerait de toucher aux plateformes |
+| [Demande D2](docs/autorisations/D2-domaine-expedition.md) | Dossier prêt à transmettre — domaine d'expédition |
 
 ## Développement
 
@@ -157,7 +158,9 @@ Trois points bloquants, aucun technique :
 1. **Cadre juridique camerounais** — les campagnes visent le Cameroun en
    priorité et l'analyse n'a pas été faite.
 2. **Domaine d'expédition séparé** — pour ne pas dégrader la délivrabilité des
-   emails transactionnels de Maintrix et d'EduCore.
+   emails transactionnels de Maintrix et d'EduCore. Le dossier de demande est
+   [prêt à transmettre](docs/autorisations/D2-domaine-expedition.md) ; aucune
+   modification DNS n'a été faite.
 3. **Approbateurs nommés** — le système exige une validation par un tiers.
 
 Détail dans [docs/04-decisions-et-risques.md](docs/04-decisions-et-risques.md).

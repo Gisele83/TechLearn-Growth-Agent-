@@ -19,6 +19,11 @@ DMARC. Le risque de ne pas le faire est documenté en D2 du registre des
 dépendances : une campagne qui génère des plaintes peut dégrader la
 délivrabilité des emails transactionnels de clients existants.
 
+Le dossier de demande est rédigé et prêt à transmettre au détenteur de la zone
+DNS : [autorisations/D2-domaine-expedition.md](autorisations/D2-domaine-expedition.md).
+Il ne reste qu'à l'envoyer et à obtenir une décision écrite. Aucune
+modification DNS n'a été effectuée.
+
 **3. Qui valide quoi.** Le système exige qu'une personne autre que l'auteur
 valide chaque message. Avec deux commerciaux, c'est tenable. Avec un seul,
 c'est bloquant. Il faut nommer les approbateurs — et prévoir le cas où la

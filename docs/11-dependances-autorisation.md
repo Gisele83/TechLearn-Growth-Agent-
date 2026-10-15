@@ -89,6 +89,12 @@ l'ajout d'enregistrements DNS pour un nouveau sous-domaine.
 
 **Qui autorise.** Le détenteur de la zone DNS.
 
+**Dossier prêt à transmettre.**
+[`autorisations/D2-domaine-expedition.md`](autorisations/D2-domaine-expedition.md)
+— risque détaillé, enregistrements à créer, ce qui reste inchangé, montée en
+volume, conditions de retrait et formulaire de décision. Aucune modification
+DNS n'a été effectuée.
+
 **Ce qui a été fait en attendant.** L'envoi réel est verrouillé par deux
 conditions indépendantes (`GA_EMAIL_SENDING_ENABLED` et un fournisseur
 non-mock). Le fournisseur SMTP **refuse de s'initialiser** si l'une manque —

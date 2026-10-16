@@ -66,9 +66,53 @@ est maintenant une règle du code, pas une consigne de rédaction.
 | `noreply@` + `GA_REPLY_TO_EMAIL` | oui | « répondez STOP » |
 | Adresse qui reçoit | oui | « répondez STOP » |
 
-`GA_REPLY_TO_EMAIL` est **vide**. `contact@techlearn-saem.com` figure en
-commentaire dans `.env.example`, prête, **non activée** — à décommenter
-quand vous aurez confirmé que la boîte existe et reçoit.
+**Mise à jour du 16 octobre 2026 : `contact@techlearn-saem.com` existe et
+reçoit.** `GA_REPLY_TO_EMAIL` est donc renseignée, et les messages invitent
+de nouveau à répondre « STOP ». Un message réel, produit de bout en bout :
+
+```
+De       : noreply@techlearn-saem.com
+Répondre : contact@techlearn-saem.com
+Objet    : Qui suit les inscriptions chez Lycée Bilingue de Douala ?
+----------------------------------------------------------------------
+Bonjour,
+
+Je cherche à savoir qui suit la gestion administrative chez Lycée Bilingue
+de Douala.
+
+EduCore regroupe les inscriptions, la scolarité et les absences dans un seul
+outil. Si c'est utile, je vous montre une inscription d'élève sur vos
+propres cas, en 30 minutes.
+
+Est-ce que je m'adresse à la bonne personne ?
+
+Si ce n'est pas votre sujet, répondez STOP et je ne vous recontacte pas.
+
+Awa Njoya
+Chargée de développement
+TechLearn
+
+--
+Pour ne plus recevoir de message de notre part :
+https://go.techlearn-saem.com/unsubscribe/TZAgt-0TzXO1gpcMbr_gSteeWNCQTHwy7aOVnhpYpB4
+```
+
+Les deux moyens d'opposition coexistent, et c'est voulu : le lien ne dépend
+de personne, la réponse si.
+
+### La réserve qui va avec
+
+Votre exigence disait « réellement reçues **et traitées** ». Reçues : oui,
+confirmé. Traitées : **à la main**. Rien ne relève cette boîte
+automatiquement. La promesse n'est tenue que si une personne la lit chaque
+jour ouvré et reporte les réponses via `POST /api/v1/replies/analyze` — une
+route qui existe, qui enregistre l'opposition, change le statut du prospect
+et bloque l'envoi suivant.
+
+La procédure est écrite (`docs/08-supervision.md`). Elle prévoit notamment de
+**vider `GA_REPLY_TO_EMAIL` pendant une absence prolongée** : les messages
+cessent alors d'inviter à répondre et renvoient au lien, qui fonctionne sans
+personne. Mieux vaut ne rien promettre que promettre à vide.
 
 ### Et le lien, lui, est devenu visible
 
@@ -130,7 +174,7 @@ Une opposition tenue en mémoire ne protège personne.
 |---|---|
 | Envoi autorisé vers une boîte de test | ❌ **non fait** — pas d'autorisation d'envoi réel |
 | Réponse STOP | ✅ simulée, injectée dans l'analyste |
-| Réception | ❌ **non fait** — aucune intégration entrante |
+| Réception | ⚠️ boîte confirmée, **relevé manuel** — aucune intégration entrante |
 | Mise à jour du statut du prospect | ✅ prouvé |
 | Blocage d'un nouvel envoi | ✅ prouvé |
 
@@ -196,11 +240,13 @@ make secrets                         Aucun secret détecté
 le risque principal, et il n'est pas levé : il dépend de D2. Tant que
 l'envoi réel n'est pas activé, il ne se matérialise pas.
 
-**R21 — Aucune réception de réponses.** Les prospects qui répondront à un
-`Reply-To` écriront à une boîte que personne ne relève automatiquement. C'est
-pour cela que le message n'invite pas à répondre tant que
-`GA_REPLY_TO_EMAIL` est vide — mais quelqu'un peut toujours répondre
-spontanément. La boîte doit être relevée par une personne.
+**R21 — Le relevé des réponses est humain, et c'est le maillon faible.**
+`contact@techlearn-saem.com` reçoit, mais rien ne la relève
+automatiquement. Une opposition reportée trois jours après son arrivée laisse
+trois jours pendant lesquels une relance peut partir — les plafonds de
+fréquence limitent la casse, ils ne la suppriment pas. Il manque **une
+personne nommée** pour cette tâche quotidienne ; tant qu'elle ne l'est pas,
+le message promet plus que l'organisation ne tient.
 
 **R22 — La détection d'opposition est une liste, pas une compréhension.** Une
 tournure inédite (« je préfère qu'on en reste là ») passerait au travers. La
@@ -218,10 +264,13 @@ il demande une clé.
 
 ## 11. Ce que j'attends de vous
 
-1. La boîte `contact@techlearn-saem.com` existe-t-elle et reçoit-elle ?
-   Tant que la réponse n'est pas oui, `GA_REPLY_TO_EMAIL` reste vide et les
-   messages n'invitent pas à répondre.
-2. Une clé SendGrid de test, pour exécuter l'intégration en bac à sable.
-3. La décision D2 sur `growth.techlearn-saem.com`.
-4. Le choix du mode de réception des réponses, si vous en voulez un :
-   webhook SendGrid Inbound Parse, IMAP, ou relevé manuel.
+1. ~~La boîte `contact@techlearn-saem.com` existe-t-elle et reçoit-elle ?~~
+   **Confirmé le 16/10/2026.** L'adresse est activée.
+2. **Qui relève cette boîte, chaque jour ouvré ?** C'est la question la plus
+   urgente : le message promet désormais « répondez STOP », et cette promesse
+   repose entièrement sur une personne. Sans nom, il vaut mieux revider
+   `GA_REPLY_TO_EMAIL`.
+3. Une clé SendGrid de test, pour exécuter l'intégration en bac à sable.
+4. La décision D2 sur `growth.techlearn-saem.com`.
+5. Le mode de réception à terme : webhook SendGrid Inbound Parse, IMAP, ou
+   relevé manuel assumé durablement.

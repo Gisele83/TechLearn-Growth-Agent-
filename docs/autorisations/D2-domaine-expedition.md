@@ -374,7 +374,8 @@ Les rebonds, eux, sont traités par SendGrid via le domaine de retour
 [ ] Enregistrements créés par le détenteur de la zone, valeurs issues de SendGrid
 [ ] Authentification du sous-domaine vérifiée dans SendGrid
 [ ] Enregistrements du domaine principal inchangés — vérifié après coup
-[ ] Boîte de réponse confirmée (existe, reçoit, surveillée par une personne nommée)
+[x] Boîte de réponse confirmée : contact@techlearn-saem.com existe et reçoit (16/10/2026)
+[ ] Personne nommée pour relever cette boîte chaque jour ouvré
 [ ] GA_EMAIL_FROM basculé sur le sous-domaine
 [ ] Mode bac à sable SendGrid désactivé, en connaissance de cause
 [ ] Procès-verbal de mise en service signé

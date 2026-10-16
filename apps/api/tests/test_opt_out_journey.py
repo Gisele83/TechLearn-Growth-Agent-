@@ -37,18 +37,21 @@ MONITORED = Settings(
 UNMONITORED = Settings(email_from="noreply@techlearn-saem.com")
 
 
-def _approved_draft(session, product, prospect, *, subject="Objet") -> MessageDraft:
+DEFAULT_BODY = (
+    "Bonjour.\n\nEduCore regroupe inscriptions et absences.\n\n"
+    "Si ce n'est pas votre sujet, le lien de désinscription en bas de ce "
+    "message vous retire de nos envois.\n\nAwa Njoya"
+)
+
+
+def _approved_draft(session, product, prospect, *, subject="Objet", body=None) -> MessageDraft:
     draft = MessageDraft(
         product_id=product.id,
         campaign_id=prospect.campaign_id,
         prospect_id=prospect.id,
         recipient_email=prospect.contact_email,
         subject=subject,
-        body=(
-            "Bonjour.\n\nEduCore regroupe inscriptions et absences.\n\n"
-            "Si ce n'est pas votre sujet, le lien de désinscription en bas de "
-            "ce message vous retire de nos envois.\n\nAwa Njoya"
-        ),
+        body=body or DEFAULT_BODY,
     )
     session.add(draft)
     session.flush()
@@ -81,6 +84,65 @@ def test_without_a_monitored_mailbox_the_message_does_not_invite_a_reply():
 def test_with_a_monitored_mailbox_the_message_may_invite_a_reply():
     assert MONITORED.replies_are_monitored() is True
     assert "STOP" in closing_line(replies_are_monitored=True)
+
+
+def test_the_confirmed_mailbox_turns_the_invitation_back_on():
+    """contact@techlearn-saem.com, confirmée le 16/10/2026. L'expéditeur
+    reste noreply@ : c'est le Reply-To qui rend la promesse tenable."""
+    configuree = Settings(
+        email_from="noreply@techlearn-saem.com",
+        reply_to_email="contact@techlearn-saem.com",
+    )
+    assert configuree.replies_are_monitored() is True
+
+
+def test_a_monitored_message_still_carries_the_link(session, product_educore, make_prospect, email):
+    """Les deux moyens coexistent. Le lien ne dépend de personne ; la
+    réponse, si. Retirer le lien parce qu'on invite à répondre reviendrait à
+    faire dépendre un droit d'une tâche humaine quotidienne."""
+    prospect = make_prospect(product=product_educore, contact_email="deux@exemple.example.org")
+    draft = _approved_draft(
+        session,
+        product_educore,
+        prospect,
+        body=(
+            "Bonjour.\n\nEduCore regroupe inscriptions et absences.\n\n"
+            "Si ce n'est pas votre sujet, répondez STOP et je ne vous "
+            "recontacte pas.\n\nAwa Njoya"
+        ),
+    )
+    send_draft(
+        session,
+        draft=draft,
+        email_provider=email,
+        actor="moi@exemple.example.org",
+        settings=MONITORED,
+    )
+    envoye = email.outbox[0]
+    assert "STOP" in envoye.body
+    assert envoye.headers["List-Unsubscribe"].strip("<>") in envoye.body
+
+
+def test_the_configured_reply_address_reaches_the_provider():
+    """Sans Reply-To sur le message remis, la réponse partirait vers
+    noreply@ et se perdrait — la promesse redeviendrait creuse."""
+    from growth_agent.connectors.email.factory import get_email_provider, reset_email_singleton
+
+    configuree = Settings(
+        email_provider="sendgrid",
+        email_sending_enabled=True,
+        sendgrid_api_key="SG.jeton-de-test",
+        email_from="noreply@techlearn-saem.com",
+        reply_to_email="contact@techlearn-saem.com",
+        public_base_url="https://go.techlearn-saem.com",
+    )
+    reset_email_singleton()
+    try:
+        provider = get_email_provider(configuree)
+        assert provider.provider == "sendgrid"
+        assert provider._reply_to == "contact@techlearn-saem.com"
+    finally:
+        reset_email_singleton()
 
 
 def test_the_sent_message_always_carries_a_visible_unsubscribe_link(

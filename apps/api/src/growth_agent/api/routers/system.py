@@ -204,12 +204,17 @@ def integrations(
             else None,
             "reply_to_configured": bool(settings.reply_to_email),
             "replies_are_monitored": settings.replies_are_monitored(),
-            # La réception n'est pas branchée. Tant qu'elle ne l'est pas,
-            # l'analyse des réponses et le taux de réponse ne reposent que
-            # sur une saisie manuelle, et ne doivent pas être présentés
-            # comme opérationnels.
+            # Aucune intégration ne relève la boîte. Une réponse n'entre dans
+            # le système que si une personne la reporte. Le dire ici évite
+            # qu'on suppose un traitement automatique qui n'existe pas — et
+            # qu'une opposition reste dans une boîte que personne ne lit.
             "inbound_integration": "aucune",
-            "reply_analysis": "non opérationnelle — réception non branchée",
+            "reply_handling": (
+                "manuelle — une personne relève la boîte et reporte via "
+                "POST /api/v1/replies/analyze"
+                if settings.replies_are_monitored()
+                else "sans objet — les messages n'invitent pas à répondre"
+            ),
             "max_per_contact_per_30_days": settings.email_max_per_contact_per_30_days,
             "max_per_campaign_per_day": settings.email_max_per_campaign_per_day,
         },

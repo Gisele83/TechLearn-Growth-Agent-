@@ -230,14 +230,24 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | SendGrid : aucun suivi de clic ni d'ouverture | `test_nothing_is_tracked` | ✅ |
 | SendGrid : en-têtes RFC 8058 préservés | `test_the_unsubscribe_headers_survive_intact` | ✅ |
 | SendGrid : la clé n'apparaît pas dans la sonde | `test_the_healthcheck_never_reveals_the_key` | ✅ |
-| **Réception des réponses** | — | ❌ **Non fait** — aucune intégration de boîte entrante |
+| La boîte de réponse réactive l'invitation à répondre | `test_the_confirmed_mailbox_turns_the_invitation_back_on` | ✅ |
+| Le lien reste présent même quand on invite à répondre | `test_a_monitored_message_still_carries_the_link` | ✅ |
+| L'adresse de réponse atteint le fournisseur | `test_the_configured_reply_address_reaches_the_provider` | ✅ |
+| **Relevé automatique de la boîte de réponse** | — | ❌ **Non fait** — relevé manuel, voir `docs/08-supervision.md` |
 | **Envoi réel vers une boîte de test** | — | ❌ **Non fait** — en attente de D2 et du procès-verbal |
-| **Taux de réponse et entonnoir démo/pilote** | — | ❌ **Non mesurables** tant que la réception n'existe pas |
+| **Taux de réponse et entonnoir démo/pilote** | — | ⚠️ **Partiels** — ne comptent que les réponses reportées à la main |
 
-La réponse STOP est injectée dans l'analyste comme si elle venait d'arriver.
-Tout ce qui suit la détection est prouvé ; **la réception elle-même ne l'est
-pas**, et le produit le dit : `/api/v1/system/integrations` renvoie
-`inbound_integration: "aucune"` et `reply_analysis: "non opérationnelle"`.
+`contact@techlearn-saem.com` existe et reçoit (confirmé le 16/10/2026). Les
+messages invitent donc de nouveau à répondre « STOP ». **Mais rien ne relève
+cette boîte automatiquement** : la promesse n'est tenue que si une personne
+la lit chaque jour ouvré et reporte les réponses via
+`POST /api/v1/replies/analyze`. Le produit le dit —
+`/api/v1/system/integrations` renvoie `inbound_integration: "aucune"` et
+`reply_handling: "manuelle"`, et les KPI portent la note correspondante.
+
+Dans les tests, la réponse STOP est injectée dans l'analyste comme si elle
+venait d'arriver. Tout ce qui suit la détection est prouvé ; **le relevé
+lui-même reste humain**.
 
 ## Supervision
 

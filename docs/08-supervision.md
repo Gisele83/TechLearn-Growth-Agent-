@@ -145,6 +145,64 @@ plafond pour faire passer une purge qu'on n'a pas expliquée.*
 
 ---
 
+## Relever les réponses — une tâche humaine, tous les jours ouvrés
+
+Les messages partent de `noreply@techlearn-saem.com` avec un `Reply-To` vers
+`contact@techlearn-saem.com`, boîte confirmée le 16 octobre 2026. Dès lors
+que cette adresse est renseignée, **chaque message promet « répondez STOP et
+je ne vous recontacte pas »**.
+
+**Rien ne relève cette boîte automatiquement.** Aucune intégration entrante
+n'existe. La promesse n'est donc tenue que si quelqu'un lit. C'est une tâche,
+pas une fonctionnalité, et elle doit être attribuée à une personne nommée.
+
+### La procédure
+
+1. **Chaque jour ouvré**, relever `contact@techlearn-saem.com`.
+2. Pour chaque réponse, la reporter telle quelle :
+
+   ```
+   POST /api/v1/replies/analyze
+   { "prospect_id": "<identifiant>", "reply_text": "<le texte reçu, intégral>" }
+   ```
+
+   Coller le texte **sans le reformuler**. La détection d'opposition porte
+   sur les mots employés ; résumer une réponse, c'est risquer d'en retirer
+   celui qui compte.
+3. Une opposition détectée est enregistrée immédiatement, le prospect passe
+   en « perdu », et tout nouvel envoi vers cette adresse est refusé. Rien
+   d'autre à faire.
+4. En cas de doute sur une réponse qui n'est pas une opposition franche,
+   ajouter l'opposition à la main plutôt que de trancher :
+   `POST /api/v1/suppressions`. L'erreur de ne pas écrire à quelqu'un qui
+   l'aurait accepté est sans conséquence ; l'inverse ne l'est pas.
+
+### Le délai compte
+
+Une opposition reportée trois jours après son arrivée laisse trois jours
+pendant lesquels une relance peut partir. Les plafonds de fréquence
+(2 messages par contact et par mois) limitent la casse, mais ne la
+suppriment pas.
+
+Si la boîte ne peut pas être relevée pendant plusieurs jours — congés,
+absence — **vider `GA_REPLY_TO_EMAIL`**. Les messages cesseront alors
+d'inviter à répondre et renverront au lien de désinscription, qui, lui,
+fonctionne sans personne. Mieux vaut ne rien promettre que promettre à vide.
+
+### Ce qui reste à décider
+
+Trois façons d'automatiser la réception, par ordre de simplicité :
+
+| Option | Ce qu'elle demande | Ce qu'elle apporte |
+|---|---|---|
+| Webhook SendGrid *Inbound Parse* | un MX sur un sous-domaine, une route publique | réponses poussées en temps réel |
+| Relevé IMAP | des identifiants de boîte, une tâche planifiée | aucun changement DNS |
+| Relevé manuel *(en place)* | une personne, chaque jour ouvré | rien à construire |
+
+Tant qu'aucune n'est retenue, le taux de réponse et l'entonnoir
+démo/pilote ne comptent que ce qui a été reporté à la main. Les KPI le
+disent dans leurs notes ; `/api/v1/system/integrations` aussi.
+
 ## Sauvegarde et restauration
 
 `monitoring/backup.sh` fait le dump au format `custom`, le chiffre, **vérifie

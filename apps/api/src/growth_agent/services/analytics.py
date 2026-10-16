@@ -228,6 +228,12 @@ def compute_product_kpis(
             "reflète que les réponses saisies à la main, pas celles que les "
             "prospects ont pu envoyer."
         )
+    else:
+        notes.append(
+            "Les réponses arrivent dans une boîte relevée à la main : ce taux "
+            "ne compte que celles qui ont été reportées. Une réponse non "
+            "reportée n'apparaît nulle part."
+        )
     if funnel.contacted == 0:
         notes.append(
             "Aucun envoi sur la période : les taux de réponse et de conversion "

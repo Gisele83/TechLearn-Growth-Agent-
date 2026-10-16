@@ -74,10 +74,10 @@ class ScriptedProvider(EmailProvider):
 def sending_settings(**overrides) -> Settings:
     """Configuration autorisant l'envoi réel. Aucun message ne part pour
     autant : le fournisseur reste une doublure."""
-    return Settings(
-        email_provider="smtp",
-        email_sending_enabled=True,
-        email_from="contact@exemple.example.org",
-        public_base_url="https://go.exemple.example.org",
-        **overrides,
-    )
+    defaults = {
+        "email_provider": "smtp",
+        "email_sending_enabled": True,
+        "email_from": "contact@exemple.example.org",
+        "public_base_url": "https://go.exemple.example.org",
+    }
+    return Settings(**{**defaults, **overrides})

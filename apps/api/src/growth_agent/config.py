@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     educore_api_token: str = ""
     educore_webhook_secret: str = ""
 
+    # --- Identité de l'expéditeur --------------------------------------------
+    # Un message de prospection est signé par une personne, pas par un outil.
+    # Sans nom configuré, la rédaction est refusée : un message anonyme est le
+    # signal d'automatisation le plus net qu'on puisse envoyer.
+    sender_name: str = ""
+    sender_role: str = ""
+    sender_organization: str = "TechLearn"
+
     # --- Conformité ----------------------------------------------------------
     data_retention_days: int = 365
     default_legal_regime: LegalRegime = LegalRegime.FR

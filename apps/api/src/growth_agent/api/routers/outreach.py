@@ -38,6 +38,7 @@ from growth_agent.schemas.outreach import (
     ReplyAnalysisOut,
     ReplyIn,
     SendResponse,
+    StyleReportOut,
     SuppressionIn,
     SuppressionOut,
     TemplateIn,
@@ -52,6 +53,7 @@ from growth_agent.services.approvals import (
 from growth_agent.services.audit import record_audit
 from growth_agent.services.outreach import send_draft
 from growth_agent.services.suppression import add_suppression, list_suppressions
+from growth_agent.services.writing import analyze_message
 
 router = APIRouter(tags=["prospection"])
 
@@ -122,7 +124,7 @@ def list_drafts(
         statement = statement.where(
             MessageDraft.product_id == resolve_product(session, product_code).id
         )
-    return list(session.execute(statement).scalars())
+    return [_with_style(session, d) for d in session.execute(statement).scalars()]
 
 
 @router.get("/drafts/{draft_id}", response_model=DraftOut)
@@ -131,7 +133,7 @@ def get_draft(
     session: SessionDep,
     _: CurrentUser = Depends(require(CAN_READ)),
 ):
-    return _require_draft(session, draft_id)
+    return _with_style(session, _require_draft(session, draft_id))
 
 
 @router.post("/drafts", response_model=DraftOut, status_code=status.HTTP_201_CREATED)
@@ -166,7 +168,7 @@ def compose_draft(
             status_code=UNPROCESSABLE_CONTENT,
             detail="Aucun brouillon n'a pu être produit.",
         )
-    return draft
+    return _with_style(session, draft)
 
 
 @router.patch("/drafts/{draft_id}", response_model=DraftOut)
@@ -215,7 +217,7 @@ def edit_draft(
         object_id=draft.id,
         metadata={"approval_invalidated": True},
     )
-    return draft
+    return _with_style(session, draft)
 
 
 @router.post("/drafts/{draft_id}/send", response_model=SendResponse)
@@ -411,6 +413,25 @@ def analyze_reply(
         suggested_next_step=outcome.classification.suggested_next_step,
         warnings=result.warnings,
     )
+
+
+def _with_style(session, draft: MessageDraft) -> DraftOut:
+    """Joint au brouillon son rapport de naturel.
+
+    Recalculé à chaque lecture plutôt que stocké : le texte peut être modifié
+    après coup, et un score figé mentirait sur le contenu réel.
+    """
+    out = DraftOut.model_validate(draft)
+    product = session.get(Product, draft.product_id)
+    prospect = session.get(ProspectCandidate, draft.prospect_id)
+    report = analyze_message(
+        draft.body,
+        subject=draft.subject,
+        organization_name=prospect.organization_name if prospect else "",
+        product_name=product.name if product else "",
+    )
+    out.style = StyleReportOut(**report.as_dict())
+    return out
 
 
 def _require_draft(session, draft_id: uuid.UUID) -> MessageDraft:

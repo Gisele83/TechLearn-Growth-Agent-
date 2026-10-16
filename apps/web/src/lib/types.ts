@@ -129,6 +129,24 @@ export interface Paged<T> {
   meta: { total: number; limit: number; offset: number }
 }
 
+export interface StyleFinding {
+  code: string
+  /** `blocking` empêche la validation ; `warning` alerte seulement. */
+  severity: 'blocking' | 'warning'
+  label: string
+  excerpt: string
+  suggestion: string
+}
+
+export interface StyleReport {
+  /** 0 à 100. Recalculé à chaque lecture, jamais stocké. */
+  naturalness: number
+  word_count: number
+  sentence_count: number
+  is_blocking: boolean
+  findings: StyleFinding[]
+}
+
 export interface Draft {
   id: string
   product_id: string
@@ -148,6 +166,7 @@ export interface Draft {
   blocked_reason: string
   sent_at: string | null
   created_at: string
+  style: StyleReport | null
 }
 
 export interface Approval {

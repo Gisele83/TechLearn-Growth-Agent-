@@ -85,6 +85,64 @@ Lancée en septembre, elle produira peu, quelle que soit la qualité du ciblage.
 3. **5 min.** Le pilote : périmètre, durée, ce qu'on attend d'eux.
 4. **5 min.** Questions.
 
+## Ce à quoi ressemble un message
+
+Le système produit ceci, et pas autre chose :
+
+```
+Objet : Votre projet d'établissement 2026
+
+Bonjour,
+
+Sur votre site, j'ai relevé ceci : « Le projet prévoit de digitaliser la
+gestion administrative et le suivi des absences. »
+
+EduCore regroupe les inscriptions, la scolarité et les absences dans un seul
+outil. Si c'est utile, je vous montre une inscription d'élève sur vos propres
+cas, en 30 minutes.
+
+Est-ce un sujet d'actualité chez vous ?
+
+Si ce n'est pas votre sujet, répondez STOP et je ne vous recontacte pas.
+
+Awa Njoya
+Chargée de développement
+TechLearn
+```
+
+Quatre partis pris, tous vérifiés par des tests :
+
+**On ouvre sur eux, jamais sur soi.** Pas de « je me permets de vous
+contacter », pas de « je m'adresse à vous en tant que directeur de… » : le
+destinataire connaît sa propre fonction.
+
+**On cite leurs mots entre guillemets.** C'est plus honnête qu'une
+reformulation, et plus convaincant : ils reconnaissent leur propre phrase. La
+citation est littérale et provient d'une source datée ; si elle ne figure
+dans aucune source, elle est écartée.
+
+**On ne colle pas d'URL.** La source reste attachée au brouillon pour que
+l'approbateur vérifie, mais une adresse de soixante caractères ne se lit pas
+dans un email.
+
+**On signe.** Un message terminé par « Cordialement, » et rien d'autre est le
+signal d'automatisation le plus net qui soit. Sans expéditeur configuré, le
+système refuse de rédiger.
+
+Sans besoin documenté, le message ne fait pas semblant d'en avoir un : il
+demande simplement si l'on s'adresse à la bonne personne.
+
+### Contrôle avant validation
+
+Chaque brouillon porte un **score de naturel sur 100**, recalculé à chaque
+lecture. Les clichés rédhibitoires, un message de plus de 220 mots ou une
+signature absente **bloquent** le brouillon ; le reste — URL brute,
+connecteurs empilés, phrases toutes de la même longueur, répétition du nom de
+l'organisation — alerte l'approbateur sans l'empêcher de valider.
+
+Chaque constat cite le passage en cause **et propose la formulation de
+remplacement** : signaler sans alternative ne fait pas progresser le texte.
+
 ## Règles communes
 
 Elles ne sont pas des recommandations : le système les applique.

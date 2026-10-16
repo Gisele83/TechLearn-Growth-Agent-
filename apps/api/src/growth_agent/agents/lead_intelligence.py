@@ -244,18 +244,32 @@ def _quote_is_grounded(quote: str, sources: list[ProspectSource]) -> bool:
 def _literal_need_signals(
     sources: list[ProspectSource], icp: IdealCustomerProfile | None
 ) -> list[str]:
-    """Repère, sans modèle, les signaux de besoin du profil cible présents
-    littéralement dans les extraits."""
+    """Repère, sans modèle, les signaux de besoin présents dans les extraits.
+
+    On remonte la **phrase** qui contient le signal, pas le mot-clé lui-même.
+    Un signal d'ICP est un fragment (« digitalis ») : repris tel quel dans un
+    message il donnait « j'ai noté que digitaliser la gestion ». La phrase
+    complète, elle, est une citation littérale exploitable.
+    """
     if not icp or not icp.need_signals:
         return []
+
     found: list[str] = []
     for source in sources:
-        haystack = strip_accents(f"{source.title} {source.excerpt}").lower()
-        for signal in icp.need_signals:
-            needle = strip_accents(str(signal)).lower().strip()
-            if needle and needle in haystack:
-                found.append(str(signal))
+        for sentence in _split_sentences(source.excerpt):
+            haystack = strip_accents(sentence).lower()
+            for signal in icp.need_signals:
+                needle = strip_accents(str(signal)).lower().strip()
+                if needle and needle in haystack:
+                    found.append(sentence)
+                    break
     return found
+
+
+def _split_sentences(text: str) -> list[str]:
+    import re
+
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text or "") if s.strip()]
 
 
 def _dedupe_preserving_order(values: list[str]) -> list[str]:

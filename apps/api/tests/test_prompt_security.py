@@ -258,3 +258,36 @@ def test_stack_info_is_redacted_too():
 
     output = _capture("test.stackinfo", emit)
     assert "direction@ecole.example.org" not in output
+
+
+def test_a_timestamp_is_not_mistaken_for_a_phone_number():
+    """Régression : le motif de téléphone dévorait l'horodatage des journaux,
+    les rendant inutilisables pour un diagnostic."""
+    ligne = "2026-10-16 20:16:37,960 INFO growth_agent — démarrage"
+    assert redact_text(ligne) == ligne
+
+
+@pytest.mark.parametrize(
+    "texte",
+    [
+        "version 1.2.3 du 2026-01-01",
+        "commande 12345678 expédiée",
+        "exécution 7bea6dd2 terminée",
+        "SIRET 12345678900011 vérifié",
+    ],
+)
+def test_numbers_that_are_not_phone_numbers_are_left_alone(texte):
+    assert "[téléphone-masqué]" not in redact_text(texte)
+
+
+@pytest.mark.parametrize(
+    "texte",
+    [
+        "appeler le +237 6 77 88 99 00",
+        "au 06 77 88 99 00",
+        "joindre le 01 23 45 67 89",
+        "tel. +33 6 12 34 56 78",
+    ],
+)
+def test_real_phone_numbers_are_still_masked(texte):
+    assert "[téléphone-masqué]" in redact_text(texte)

@@ -118,6 +118,22 @@
 | Conformes aux modèles | `test_migration_matches_the_models` | ✅ |
 | Contraintes d'unicité présentes | `test_unique_constraints_are_present` | ✅ |
 
+## Naturel des messages
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Un message produit passe ses propres contrôles | `test_a_composed_message_passes_the_naturalness_check` | ✅ |
+| Signé par une personne | `test_a_composed_message_is_signed_by_a_person` | ✅ |
+| Refus de rédiger sans expéditeur | `test_the_composer_refuses_to_write_without_a_sender` | ✅ |
+| Aucune URL collée dans le texte | `test_a_composed_message_never_pastes_a_url` | ✅ |
+| Entre 40 et 120 mots | `test_a_composed_message_stays_short` | ✅ |
+| Les clichés bloquent le brouillon | 8 cas paramétrés | ✅ |
+| Chaque constat propose un remplacement | `test_every_cliche_comes_with_a_replacement` | ✅ |
+| Un bon message n'est pas signalé | `test_a_well_written_message_scores_full_marks` | ✅ |
+| Pas de jargon interne dans le message | `test_the_message_quotes_the_prospect_not_our_internal_notes` | ✅ corrigé après exécution réelle |
+| Accord en nombre dans l'objet | 4 cas paramétrés | ✅ |
+| Horodatages non pris pour des téléphones | `test_a_timestamp_is_not_mistaken_for_a_phone_number` | ✅ corrigé |
+
 ## Interface
 
 | Contrôle | Preuve | État |

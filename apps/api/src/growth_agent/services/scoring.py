@@ -102,6 +102,10 @@ class CriterionScore:
     status: str
     evidence: list[str] = field(default_factory=list)
     comment: str = ""
+    #: Passages littéralement cités dans les sources. Le commentaire décrit le
+    #: critère pour un lecteur interne ; ces citations, elles, sont les mots du
+    #: prospect et peuvent être reprises dans un message.
+    quotes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -112,6 +116,7 @@ class CriterionScore:
             "status": self.status,
             "evidence": list(self.evidence),
             "comment": self.comment,
+            "quotes": list(self.quotes),
         }
 
 
@@ -298,6 +303,7 @@ def _score_need(data: ScoringInput) -> CriterionScore:
             max_points=maximum,
             status=VerificationStatus.HYPOTHESIS,
             comment="Besoin évoqué mais sans source citée.",
+            quotes=quotes[:3],
         )
     points = maximum if len(quotes) >= 2 else round(maximum * 0.8)
     return CriterionScore(
@@ -308,6 +314,7 @@ def _score_need(data: ScoringInput) -> CriterionScore:
         status=VerificationStatus.VERIFIED,
         evidence=data.evidence_urls[:3],
         comment=f"{len(quotes)} signal(aux) de besoin cité(s) depuis des sources datées.",
+        quotes=quotes[:3],
     )
 
 

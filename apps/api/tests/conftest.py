@@ -19,6 +19,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 os.environ.setdefault("GA_ENVIRONMENT", "local")
 os.environ.setdefault("GA_EMAIL_SENDING_ENABLED", "false")
+# Un expéditeur est requis pour rédiger : sans lui le message serait anonyme.
+os.environ.setdefault("GA_SENDER_NAME", "Awa Njoya")
+os.environ.setdefault("GA_SENDER_ROLE", "Chargée de développement")
+os.environ.setdefault("GA_SENDER_ORGANIZATION", "TechLearn")
 
 from growth_agent.api.deps import db_session  # noqa: E402
 from growth_agent.config import get_settings  # noqa: E402

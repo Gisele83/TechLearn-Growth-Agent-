@@ -63,6 +63,12 @@ faisabilité 15, potentiel 15. Chaque point cite la preuve qui le justifie.
 depuis les événements. Quand il n'y a pas de base de calcul, l'interface
 affiche « Aucun envoi » et non « 0 % ».
 
+**Les messages ne sonnent pas comme des messages générés.** On ouvre sur ce
+qu'on a lu chez eux, on cite leurs mots entre guillemets, on ne colle pas
+d'URL, et on signe d'un nom — sans expéditeur configuré, le système refuse de
+rédiger. Un score de naturel signale les tournures qui trahissent la machine
+et propose la formulation humaine en remplacement.
+
 **Une opposition survit à la purge.** Les données arrivent à échéance et sont
 anonymisées, mais la liste d'opposition n'est jamais purgée : effacer l'adresse
 de quelqu'un qui a refusé d'être contacté reviendrait à le recontacter.

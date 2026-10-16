@@ -41,6 +41,24 @@ class ComposeRequest(BaseModel):
     template_id: uuid.UUID | None = None
 
 
+class StyleFindingOut(BaseModel):
+    code: str
+    severity: str
+    label: str
+    excerpt: str
+    suggestion: str
+
+
+class StyleReportOut(BaseModel):
+    """Naturel du texte, tel qu'il sera présenté à l'approbateur."""
+
+    naturalness: int
+    word_count: int
+    sentence_count: int
+    is_blocking: bool
+    findings: list[StyleFindingOut] = Field(default_factory=list)
+
+
 class DraftOut(ORMModel):
     id: uuid.UUID
     product_id: uuid.UUID
@@ -60,6 +78,8 @@ class DraftOut(ORMModel):
     blocked_reason: str
     sent_at: datetime | None
     created_at: datetime
+    #: Calculé à la volée, jamais stocké : le texte peut changer après coup.
+    style: StyleReportOut | None = None
 
 
 class DraftEditIn(BaseModel):

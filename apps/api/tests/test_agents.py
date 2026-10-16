@@ -516,3 +516,138 @@ def test_a_failing_agent_still_logs_its_failure(ctx, session, product_educore):
     action = session.execute(select(AgentAction)).scalars().one()
     assert action.status == "failed"
     assert "panne" in action.error_message
+
+
+# --- Naturel des messages produits -------------------------------------------
+
+
+def test_the_composer_refuses_to_write_without_a_sender(
+    ctx, session, product_educore, make_prospect, llm, monkeypatch
+):
+    """Plutôt que de produire un message anonyme, on refuse de rédiger."""
+    from growth_agent.config import Settings
+
+    prospect = make_prospect(product=product_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+
+    with pytest.raises(CompositionRefused, match="GA_SENDER_NAME"):
+        OutreachComposerAgent(llm).execute(
+            ctx,
+            prospect=prospect,
+            product=product_educore,
+            settings=Settings(sender_name=""),
+        )
+
+
+def test_a_composed_message_is_signed_by_a_person(
+    ctx, session, product_educore, make_prospect, llm
+):
+    prospect = make_prospect(product=product_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+    result = OutreachComposerAgent(llm).execute(ctx, prospect=prospect, product=product_educore)
+    assert "Awa Njoya" in result.value.draft.body
+
+
+def test_a_composed_message_passes_the_naturalness_check(
+    ctx, session, product_educore, make_prospect, llm
+):
+    """Ce que le système produit par défaut ne doit pas déclencher ses
+    propres alertes — sinon le garde-fou ne sert qu'à signaler nos fautes."""
+    prospect = make_prospect(product=product_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+    result = OutreachComposerAgent(llm).execute(ctx, prospect=prospect, product=product_educore)
+    assert result.value.style is not None
+    assert result.value.style.is_blocking is False
+    assert result.value.style.naturalness >= 90, [f.label for f in result.value.style.findings]
+
+
+def test_a_composed_message_stays_short(ctx, session, product_educore, make_prospect, llm):
+    prospect = make_prospect(product=product_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+    result = OutreachComposerAgent(llm).execute(ctx, prospect=prospect, product=product_educore)
+    assert 40 <= result.value.style.word_count <= 120
+
+
+def test_a_composed_message_never_pastes_a_url(ctx, session, product_educore, make_prospect, llm):
+    """La source reste attachée au brouillon pour vérification, mais elle
+    n'est pas collée dans le texte : une URL de soixante caractères ne se lit
+    pas."""
+    prospect = make_prospect(product=product_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+    result = OutreachComposerAgent(llm).execute(ctx, prospect=prospect, product=product_educore)
+    assert "http" not in result.value.draft.body
+    assert result.value.draft.evidence_refs, "la source doit rester rattachée"
+
+
+def test_a_draft_full_of_ai_tells_is_blocked(ctx, session, product_educore, make_prospect):
+    from growth_agent.connectors.llm.mock import MockLLMProvider
+
+    bavard = MockLLMProvider(
+        scripted_responses=[
+            '{"subject":"Notre solution","body":"Bonjour,\\n\\nJe me permets de '
+            "vous contacter au sujet de notre solution innovante. Répondez STOP "
+            'pour ne plus rien recevoir.\\n\\nBien cordialement,",ّ'
+            '"evidence_refs":[],"variables_used":{},"language":"fr"}'.replace("ّ", "")
+        ]
+    )
+    prospect = make_prospect(product=product_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+
+    result = OutreachComposerAgent(bavard).execute(ctx, prospect=prospect, product=product_educore)
+    assert result.value.is_blocked
+    assert result.value.style.is_blocking is True
+
+
+def test_without_a_documented_need_the_message_does_not_pretend(
+    ctx, session, product_maintrix, make_prospect, llm
+):
+    """Sans signal, on demande si on s'adresse à la bonne personne plutôt que
+    d'inventer un besoin. C'est plus honnête, et ça se lit mieux."""
+    prospect = make_prospect(
+        product=product_maintrix,
+        domain="sans-signal.example.org",
+        excerpt="Page institutionnelle sans information particulière.",
+        sector="Énergie",
+    )
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+    result = OutreachComposerAgent(llm).execute(ctx, prospect=prospect, product=product_maintrix)
+    body = result.value.draft.body
+    assert "bonne personne" in body
+    assert result.value.style.is_blocking is False
+
+
+def test_the_message_quotes_the_prospect_not_our_internal_notes(
+    ctx, session, product_educore, icp_educore, make_prospect, llm
+):
+    """Régression trouvée en exécutant le parcours réel.
+
+    Le composeur reprenait le commentaire du critère de scoring, destiné à un
+    lecteur interne, et produisait : « j'ai noté que 3 signal(aux) de besoin
+    cité(s) depuis des sources datées ». Il doit citer les mots du prospect.
+    """
+    from growth_agent.agents.lead_intelligence import LeadIntelligenceAgent
+
+    prospect = make_prospect(
+        product=product_educore,
+        excerpt="L'établissement souhaite améliorer sa gestion administrative des inscriptions.",
+    )
+    LeadIntelligenceAgent(llm).execute(ctx, prospect=prospect, icp=icp_educore)
+    prospect.verification_status = VerificationStatus.VERIFIED
+    session.flush()
+
+    body = (
+        OutreachComposerAgent(llm)
+        .execute(ctx, prospect=prospect, product=product_educore)
+        .value.draft.body
+    )
+
+    for jargon in ("signal(aux)", "cité(s)", "sources datées", "critère", "score"):
+        assert jargon not in body, f"jargon interne dans le message : {jargon}"
+    assert "gestion administrative" in body, "la citation du prospect doit apparaître"

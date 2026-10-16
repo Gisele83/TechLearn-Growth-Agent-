@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { Banner, DraftStatusBadge, EmptyState, Loading, formatDate } from '@/components/ui'
+import {
+  Banner,
+  DraftStatusBadge,
+  EmptyState,
+  Loading,
+  StylePanel,
+  formatDate,
+} from '@/components/ui'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import type { Approval, Draft } from '@/lib/types'
@@ -127,6 +134,8 @@ export function ApprovalsPage() {
                     <strong>{draft.subject}</strong>
                   </p>
                   <div className="message-preview">{draft.body}</div>
+
+                  <StylePanel style={draft.style} />
 
                   {draft.evidence_refs.length ? (
                     <p className="muted">

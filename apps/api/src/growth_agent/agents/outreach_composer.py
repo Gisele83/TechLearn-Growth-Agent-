@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from growth_agent.agents.base import AgentContext, AgentResult, BaseAgent
+from growth_agent.config import Settings, get_settings
 from growth_agent.connectors.llm.base import LLMProvider, LLMRequest, LLMSchemaError
 from growth_agent.models.catalog import Campaign, Product
 from growth_agent.models.enums import (
@@ -37,20 +38,63 @@ from growth_agent.models.outreach import MessageDraft, MessageTemplate
 from growth_agent.models.prospect import ProspectCandidate, ProspectSource
 from growth_agent.services.audit import record_audit
 from growth_agent.services.suppression import check_suppression
+from growth_agent.services.writing import StyleReport, analyze_message
 
 TEMPLATE_VARIABLE_RE = re.compile(r"\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}")
 URL_RE = re.compile(r"https?://[^\s<>\"')]+")
 
 OPT_OUT_MARKERS = ("stop", "désinscri", "desinscri", "opposition", "ne plus recevoir")
 
-SYSTEM_PROMPT = (
-    "Tu rédiges un premier message de prospection B2B en français, sobre et court. "
-    "Tu n'affirmes QUE ce qui figure dans le contexte fourni. "
-    "Tu n'inventes aucun chiffre, aucune référence client, aucun engagement de prix. "
-    "Tu n'emploies pas de superlatif ni de promesse de résultat. "
-    "Le message doit permettre au destinataire de s'opposer facilement. "
-    "Réponds uniquement par un objet JSON conforme au schéma demandé."
-)
+SYSTEM_PROMPT = """Tu écris le premier message d'un commercial à un
+prospect qu'il ne connaît pas. En français, et de façon à ce qu'on ne
+devine pas qu'une machine l'a rédigé.
+
+La structure, dans cet ordre :
+1. Ce que tu as lu chez eux. Un fait précis, pas une généralité.
+2. Ce que fait le produit, en une phrase, avec un verbe concret.
+3. Une seule demande, peu engageante.
+4. Une sortie : comment ne plus être contacté.
+5. La signature fournie, telle quelle.
+
+Ce qui trahit immédiatement une machine, et que tu n'écris donc jamais :
+- « Je me permets de vous contacter », « J'espère que ce message vous trouve bien »
+- « Je m'adresse à vous en tant que [fonction] de [organisation] » : il connaît
+  sa propre fonction
+- « solution innovante », « leader », « incontournable », « clé en main »,
+  « parfaitement adapté à vos besoins », « répond précisément à ce type de besoin »
+- « N'hésitez pas à », « Je reste à votre entière disposition »
+- une URL collée dans le texte : nomme la page (« votre projet d'établissement »)
+- des connecteurs empilés (« De plus », « En outre », « Par ailleurs »)
+- des phrases toutes de la même longueur : alterne long et court
+- une formule de politesse sans nom derrière
+
+Contraintes de fond :
+- Tu n'affirmes que ce qui figure dans le contexte fourni. Aucun chiffre,
+  aucune référence client, aucun engagement de prix inventé.
+- Si aucun besoin n'est documenté, ne fais pas semblant : demande simplement
+  si tu t'adresses à la bonne personne. C'est plus honnête et ça marche mieux.
+- 60 à 110 mots. Au-delà, le message n'est pas lu.
+- Pas de liste à puces dans un premier contact.
+
+Exemple de ce qu'on attend :
+
+    Bonjour,
+
+    En lisant votre projet d'établissement 2026, j'ai noté que vous comptiez
+    digitaliser le suivi des absences.
+
+    EduCore regroupe inscriptions, scolarité et absences dans un seul outil.
+    Si c'est utile, je vous montre une inscription sur vos propres cas, en
+    30 minutes.
+
+    Est-ce un sujet d'actualité chez vous ?
+
+    Si ce n'est pas votre sujet, répondez STOP et je ne vous recontacte pas.
+
+    Awa Njoya
+    TechLearn
+
+Réponds uniquement par un objet JSON conforme au schéma demandé."""
 
 
 class ComposedMessage(BaseModel):
@@ -69,6 +113,7 @@ class CompositionRefused(Exception):
 class CompositionOutcome:
     draft: MessageDraft | None
     blocked_reason: str = ""
+    style: StyleReport | None = None
 
     @property
     def is_blocked(self) -> bool:
@@ -90,9 +135,20 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
         product: Product,
         campaign: Campaign | None = None,
         template: MessageTemplate | None = None,
+        settings: Settings | None = None,
         **_: Any,
     ) -> AgentResult[CompositionOutcome]:
         warnings: list[str] = []
+        settings = settings or get_settings()
+
+        # Un message doit être signé par quelqu'un. Plutôt que de produire un
+        # texte anonyme qu'il faudra corriger, on refuse de rédiger.
+        if not settings.sender_name.strip():
+            raise CompositionRefused(
+                "Aucun expéditeur configuré (GA_SENDER_NAME). Un message de "
+                "prospection se signe d'un nom : sans lui, le destinataire voit "
+                "immédiatement un envoi automatique."
+            )
 
         # Refus en amont — inutile de rédiger ce qui ne pourra pas partir.
         if prospect.verification_status == VerificationStatus.REJECTED:
@@ -129,6 +185,9 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             product=product,
             need_summary=need_summary,
             known_urls=sorted(known_urls),
+            source_title=sources[0].title if sources else "",
+            source_kind=sources[0].kind if sources else "",
+            signature=_signature(settings),
             template=template,
         )
         if composed is None:
@@ -170,6 +229,21 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
         if not blocked_reason and not _mentions_opt_out(body):
             blocked_reason = "Le message ne propose aucun moyen de s'opposer à la prospection."
 
+        # 5. Naturel du texte ---------------------------------------------------
+        # Un message qui sonne artificiel n'est pas un défaut de conformité mais
+        # il sera ignoré, ce qui revient au même. Les clichés rédhibitoires et
+        # l'absence de signature bloquent ; le reste alerte l'approbateur.
+        style = analyze_message(
+            body,
+            subject=subject,
+            organization_name=prospect.organization_name,
+            product_name=product.name,
+        )
+        if not blocked_reason and style.is_blocking:
+            blocked_reason = " ".join(
+                f"{f.label} : « {f.excerpt} »." for f in style.blocking_findings
+            )
+
         draft = MessageDraft(
             product_id=product.id,
             campaign_id=campaign.id if campaign else None,
@@ -196,6 +270,9 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             )
         if blocked_reason:
             warnings.append(blocked_reason)
+        for finding in style.findings:
+            if finding.severity != "blocking":
+                warnings.append(f"{finding.label} : « {finding.excerpt} » — {finding.suggestion}")
 
         record_audit(
             context.session,
@@ -214,8 +291,12 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
         )
 
         return AgentResult(
-            value=CompositionOutcome(draft=draft, blocked_reason=blocked_reason),
-            summary={"draft_id": str(draft.id), "status": draft.status},
+            value=CompositionOutcome(draft=draft, blocked_reason=blocked_reason, style=style),
+            summary={
+                "draft_id": str(draft.id),
+                "status": draft.status,
+                "naturalness": style.naturalness,
+            },
             model_reference=model_reference,
             warnings=warnings,
         )
@@ -227,6 +308,9 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
         product: Product,
         need_summary: str,
         known_urls: list[str],
+        source_title: str,
+        source_kind: str,
+        signature: str,
         template: MessageTemplate | None,
     ) -> tuple[ComposedMessage | None, str]:
         template_hint = ""
@@ -250,9 +334,13 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             metadata={
                 "task": "compose",
                 "product_name": product.name,
+                "product_code": product.code,
                 "organization_name": prospect.organization_name,
                 "contact_role": prospect.contact_role,
                 "need_summary": need_summary,
+                "source_title": source_title,
+                "source_kind": source_kind,
+                "signature": signature,
                 "evidence_urls": known_urls,
                 "language": "fr",
             },
@@ -280,11 +368,44 @@ def _latest_need_summary(context: AgentContext, prospect: ProspectCandidate) -> 
     if assessment is None:
         return ""
     for criterion in assessment.criteria:
-        if criterion.get("key") == "documented_need" and criterion.get("points", 0) > 0:
-            return str(criterion.get("comment", ""))
+        if criterion.get("key") != "documented_need":
+            continue
+        # Les citations sont les mots du prospect ; le commentaire décrit le
+        # critère pour un lecteur interne. Reprendre le commentaire dans un
+        # message donnait « j'ai noté que 3 signal(aux) de besoin cité(s) ».
+        quotes = [str(q) for q in (criterion.get("quotes") or []) if q]
+        if quotes:
+            return _best_quote(quotes)
     return ""
+
+
+def _best_quote(quotes: list[str]) -> str:
+    """Choisit la citation la plus présentable.
+
+    Les signaux repérés par expression régulière commencent souvent au milieu
+    d'une phrase (« recrute pour accompagner… ») là où la phrase entière de la
+    source se lit seule. On retient donc la plus complète, bornée pour ne pas
+    déverser un paragraphe dans un email.
+    """
+    usable = [q.strip() for q in quotes if 20 <= len(q.strip()) <= 220]
+    return max(usable, key=len) if usable else quotes[0].strip()[:220]
 
 
 def _mentions_opt_out(body: str) -> bool:
     lowered = body.lower()
     return any(marker in lowered for marker in OPT_OUT_MARKERS)
+
+
+def _signature(settings: Settings) -> str:
+    """Signature de l'expéditeur, telle qu'elle apparaîtra en bas du message.
+
+    Prénom et nom, puis la fonction si elle est renseignée, puis
+    l'organisation. Pas de formule de politesse : elle appartient au corps du
+    message, et l'y dupliquer sonne faux.
+    """
+    lines = [settings.sender_name.strip()]
+    if settings.sender_role.strip():
+        lines.append(settings.sender_role.strip())
+    if settings.sender_organization.strip():
+        lines.append(settings.sender_organization.strip())
+    return "\n".join(line for line in lines if line)

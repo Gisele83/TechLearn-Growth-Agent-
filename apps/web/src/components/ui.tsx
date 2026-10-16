@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import type { StyleReport } from '@/lib/types'
+
 /** Bandeau d'information, d'avertissement ou d'erreur. */
 export function Banner({
   tone = 'info',
@@ -139,6 +141,48 @@ export function ScoreBar({ score, max = 100 }: { score: number | null; max?: num
       <span className="mono">
         {score}/{max}
       </span>
+    </div>
+  )
+}
+
+/**
+ * Naturel d'un message, avec le détail de ce qui sonne artificiel.
+ *
+ * On montre l'extrait fautif et la formulation de remplacement : signaler
+ * sans proposer d'alternative ne fait pas progresser le texte.
+ */
+export function StylePanel({ style }: { style: StyleReport | null }) {
+  if (!style) return null
+
+  const tone = style.is_blocking ? 'danger' : style.naturalness >= 90 ? 'ok' : 'warn'
+  const verdict = style.is_blocking
+    ? 'À réécrire avant validation'
+    : style.naturalness >= 90
+      ? 'Se lit naturellement'
+      : 'Quelques tournures à revoir'
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Badge tone={tone}>Naturel {style.naturalness}/100</Badge>
+        <span className="muted">
+          {verdict} · {style.word_count} mots
+        </span>
+      </div>
+
+      {style.findings.length > 0 ? (
+        <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: '0.86rem' }}>
+          {style.findings.map((finding, index) => (
+            <li key={`${finding.code}-${index}`} style={{ marginBottom: 8 }}>
+              <Badge tone={finding.severity === 'blocking' ? 'danger' : 'warn'}>
+                {finding.severity === 'blocking' ? 'bloquant' : 'à revoir'}
+              </Badge>{' '}
+              {finding.label} : <em>« {finding.excerpt} »</em>
+              <div className="muted">{finding.suggestion}</div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   EmptyState,
   ScoreBar,
   Stat,
+  StylePanel,
   VerificationBadge,
   formatDate,
   formatPercent,
@@ -103,5 +104,67 @@ describe('Banner', () => {
   it('annonce une information comme un statut', () => {
     render(<Banner tone="info">Information</Banner>)
     expect(screen.getByRole('status')).toHaveTextContent('Information')
+  })
+})
+
+describe('StylePanel', () => {
+  const base = { naturalness: 100, word_count: 76, sentence_count: 6, is_blocking: false, findings: [] }
+
+  it('n’affiche rien sans rapport', () => {
+    const { container } = render(<StylePanel style={null} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('annonce un texte naturel', () => {
+    render(<StylePanel style={base} />)
+    expect(screen.getByText('Naturel 100/100')).toBeInTheDocument()
+    expect(screen.getByText(/Se lit naturellement/)).toBeInTheDocument()
+  })
+
+  it('montre l’extrait fautif et son remplacement', () => {
+    render(
+      <StylePanel
+        style={{
+          ...base,
+          naturalness: 75,
+          is_blocking: true,
+          findings: [
+            {
+              code: 'cliche_redhibitoire',
+              severity: 'blocking',
+              label: 'Formule qu’aucun commercial n’écrit spontanément',
+              excerpt: 'Je me permets de…',
+              suggestion: 'Entrez dans le sujet.',
+            },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByText(/À réécrire avant validation/)).toBeInTheDocument()
+    expect(screen.getByText('« Je me permets de… »')).toBeInTheDocument()
+    expect(screen.getByText('Entrez dans le sujet.')).toBeInTheDocument()
+    expect(screen.getByText('bloquant')).toBeInTheDocument()
+  })
+
+  it('distingue une alerte d’un blocage', () => {
+    render(
+      <StylePanel
+        style={{
+          ...base,
+          naturalness: 92,
+          findings: [
+            {
+              code: 'url_brute',
+              severity: 'warning',
+              label: 'URL longue collée dans le texte',
+              excerpt: 'https://exemple…',
+              suggestion: 'Nommer la page.',
+            },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByText('à revoir')).toBeInTheDocument()
+    expect(screen.queryByText('bloquant')).not.toBeInTheDocument()
   })
 })

@@ -176,41 +176,48 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> dict[s
 
     # --- Gabarits -----------------------------------------------------------
     templates = 0
+    # Gabarits écrits comme les écrirait un commercial : on ouvre sur ce qu'on
+    # a lu chez eux, on dit ce que fait le produit en une phrase, on demande
+    # une seule chose, on signe. Pas de « je me permets », pas de superlatif,
+    # pas d'URL collée dans le texte.
     for code, (slug, name, subject, body) in {
         "maintrix": (
             "premier-contact-industrie",
             "Premier contact — industrie",
-            "{{product_name}} — démonstration de 30 minutes pour {{organization_name}}",
+            "{{accroche}}",
             (
                 "Bonjour,\n\n"
-                "Je m'adresse à vous en tant que {{contact_role}} de {{organization_name}}.\n"
-                "{{need_line}}\n\n"
-                "{{product_name}} permet de suivre les interventions et les arrêts machine "
-                "sur un scénario vérifiable. Seriez-vous disponible pour une démonstration "
-                "de 30 minutes ?\n\n"
-                "Si ce message ne vous concerne pas, répondez « STOP » : votre adresse sera "
-                "retirée de nos envois.\n\nBien cordialement,"
+                "{{observation}}\n\n"
+                "Maintrix sert à suivre les interventions et les arrêts machine "
+                "sans passer par un tableur. Si c'est utile, je vous montre le "
+                "suivi d'un arrêt sur un de vos équipements, en 30 minutes.\n\n"
+                "Est-ce un sujet d'actualité chez vous ?\n\n"
+                "Si ce n'est pas votre sujet, répondez STOP et je ne vous "
+                "recontacte pas.\n\n"
+                "{{signature}}"
             ),
         ),
         "educore": (
             "premier-contact-etablissement",
             "Premier contact — établissement",
-            "{{product_name}} — gestion administrative de {{organization_name}}",
+            "{{accroche}}",
             (
                 "Bonjour,\n\n"
-                "Je m'adresse à vous en tant que {{contact_role}} de {{organization_name}}.\n"
-                "{{need_line}}\n\n"
-                "{{product_name}} prend en charge inscriptions, scolarité et suivi "
-                "administratif. Seriez-vous disponible pour une démonstration de 30 minutes "
-                "sur un scénario de votre établissement ?\n\n"
-                "Si ce message ne vous concerne pas, répondez « STOP » : votre adresse sera "
-                "retirée de nos envois.\n\nBien cordialement,"
+                "{{observation}}\n\n"
+                "EduCore regroupe les inscriptions, la scolarité et les absences "
+                "dans un seul outil. Si c'est utile, je vous montre une "
+                "inscription d'élève sur vos propres cas, en 30 minutes.\n\n"
+                "Est-ce un sujet d'actualité chez vous ?\n\n"
+                "Si ce n'est pas votre sujet, répondez STOP et je ne vous "
+                "recontacte pas.\n\n"
+                "{{signature}}"
             ),
         ),
     }.items():
         existing = session.execute(
             select(MessageTemplate).where(
-                MessageTemplate.product_id == products[code].id, MessageTemplate.slug == slug
+                MessageTemplate.product_id == products[code].id,
+                MessageTemplate.slug == slug,
             )
         ).scalar_one_or_none()
         if existing is not None:
@@ -222,12 +229,7 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> dict[s
                 name=name,
                 subject_template=subject,
                 body_template=body,
-                allowed_variables=[
-                    "product_name",
-                    "organization_name",
-                    "contact_role",
-                    "need_line",
-                ],
+                allowed_variables=["accroche", "observation", "signature"],
             )
         )
         templates += 1

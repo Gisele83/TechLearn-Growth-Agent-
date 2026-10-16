@@ -94,35 +94,75 @@ class MockLLMProvider(LLMProvider):
         }
 
     def _compose(self, request: LLMRequest) -> dict[str, Any]:
-        context = request.metadata
-        product = context.get("product_name", "notre solution")
-        org = context.get("organization_name", "votre organisation")
-        role = context.get("contact_role") or "Bonjour"
-        need = context.get("need_summary") or ""
-        evidence = list(context.get("evidence_urls", []))
+        """Rédige un premier contact qui ne sonne pas comme une machine.
 
-        need_line = (
-            f"En consultant {evidence[0]}, j'ai noté : {need}."
-            if need and evidence
-            else "Je me permets de vous écrire au sujet de vos enjeux d'organisation."
-        )
+        Les règles appliquées ici sont celles qu'on donnerait à un commercial
+        débutant : ouvrir sur ce qu'on a lu chez eux, dire en une phrase ce que
+        fait le produit, demander une seule chose, signer de son nom.
+
+        Ce qu'on s'interdit : se présenter avant de parler d'eux, coller une
+        URL dans le texte, employer un superlatif, ou terminer par une formule
+        de politesse sans personne derrière.
+        """
+        context = request.metadata
+        product = context.get("product_name", "")
+        org = context.get("organization_name", "votre établissement")
+        need = (context.get("need_summary") or "").strip()
+        source_title = (context.get("source_title") or "").strip()
+        signature = (context.get("signature") or "").strip()
+        product_code = str(context.get("product_code", "")).lower()
+
+        pitch = _PITCH.get(product_code, f"{product} répond à ce type d'organisation.")
+        demo = _DEMO.get(product_code, "je peux vous le montrer en 30 minutes")
+
+        if need and source_title:
+            # Cas favorable : on a lu quelque chose de précis chez eux. On
+            # désigne la source par sa nature — « votre offre d'emploi » — et
+            # non par son titre, qui contient souvent une ponctuation qui se
+            # lit mal dans une phrase.
+            subject = _subject_from_source(source_title, context.get("source_kind", ""))
+            where = _SOURCE_PHRASE.get(context.get("source_kind", ""), "Sur votre site")
+            # On cite entre guillemets au lieu d'enchâsser la citation dans la
+            # phrase : une citation est rarement un complément grammatical
+            # valide, et la citer telle quelle est à la fois plus juste et
+            # plus convaincant — ce sont leurs mots.
+            opening = f"{where}, j'ai relevé ceci : « {_as_quote(need)} »"
+            ask = "Est-ce un sujet d'actualité chez vous ?"
+        elif need:
+            subject = _subject_from_need(need, org)
+            opening = f"J'ai relevé ceci vous concernant : « {_as_quote(need)} »"
+            ask = "Est-ce que le sujet est ouvert en ce moment ?"
+        else:
+            # Aucun signal : on ne feint pas d'en avoir un. On demande
+            # simplement si on s'adresse à la bonne personne.
+            subject = _subject_without_signal(product_code, org)
+            opening = (
+                f"Je cherche à savoir qui suit {_TOPIC.get(product_code, 'ce sujet')} chez {org}."
+            )
+            ask = "Est-ce que je m'adresse à la bonne personne ?"
+
         body = (
             f"Bonjour,\n\n"
-            f"Je m'adresse à vous en tant que {role.lower()} de {org}. {need_line}\n\n"
-            f"{product} répond précisément à ce type de besoin. Seriez-vous disponible "
-            f"pour une démonstration de 30 minutes sur un scénario vérifiable ?\n\n"
-            f"Si ce message ne vous concerne pas, répondez simplement « STOP » : "
-            f"votre adresse sera retirée de nos envois.\n\n"
-            f"Bien cordialement,"
+            f"{opening}\n\n"
+            f"{pitch} Si c'est utile, {demo}.\n\n"
+            f"{ask}\n\n"
+            f"Si ce n'est pas votre sujet, répondez STOP et je ne vous recontacte pas.\n\n"
+            f"{signature}"
         )
+
         return {
-            "subject": f"{product} — démonstration de 30 minutes pour {org}",
+            "subject": subject,
             "body": body,
-            "evidence_refs": evidence,
+            # On ne cite pas l'URL dans le texte : elle reste attachée au
+            # brouillon pour que l'approbateur puisse vérifier la source.
+            "evidence_refs": list(context.get("evidence_urls", [])),
+            # On déclare les variables réellement substituées, nommées comme
+            # dans les gabarits : c'est ce que le composeur confronte à la
+            # liste blanche du gabarit.
             "variables_used": {
-                "organization_name": org,
-                "product_name": product,
-                "contact_role": role,
+                "accroche": subject,
+                "observation": opening,
+                "signature": signature,
             },
             "language": context.get("language", "fr"),
         }
@@ -198,3 +238,108 @@ def _find_need_quotes(text: str) -> list[str]:
         if match:
             found.append(match.group(0).strip())
     return found
+
+
+# --- Formulations par produit ------------------------------------------------
+#
+# Écrites à la main, produit par produit. Une phrase générique appliquée aux
+# deux produits se reconnaîtrait immédiatement.
+
+_PITCH: dict[str, str] = {
+    "maintrix": (
+        "Maintrix sert à suivre les interventions et les arrêts machine sans passer par un tableur."
+    ),
+    "educore": (
+        "EduCore regroupe les inscriptions, la scolarité et les absences dans un seul outil."
+    ),
+}
+
+_DEMO: dict[str, str] = {
+    "maintrix": "je vous montre le suivi d'un arrêt sur un de vos équipements, en 30 minutes",
+    "educore": "je vous montre une inscription d'élève sur vos propres cas, en 30 minutes",
+}
+
+_TOPIC: dict[str, str] = {
+    "maintrix": "la maintenance",
+    "educore": "la gestion administrative",
+}
+
+
+#: Comment désigner la source dans une phrase, selon sa nature. Nommer la
+#: page évite de coller une URL, et « votre offre d'emploi » se lit mieux
+#: qu'un titre brut contenant deux-points ou parenthèses.
+_SOURCE_PHRASE: dict[str, str] = {
+    "job_posting": "En lisant votre offre d'emploi",
+    "press_article": "Dans un article qui vous est consacré",
+    "public_website": "Sur votre site",
+    "public_registry": "Sur votre fiche d'entreprise",
+    "directory": "Dans l'annuaire où vous figurez",
+    "partner_referral": "Par un contact commun",
+    "manual_import": "En me renseignant sur vous",
+}
+
+
+def _as_quote(clause: str) -> str:
+    """Prépare une citation : majuscule initiale, point final."""
+    text = clause.strip()
+    if not text:
+        return ""
+    text = text[0].upper() + text[1:]
+    return text if text[-1] in ".!?" else f"{text}."
+
+
+#: Les titres de presse sont des phrases : « Votre » devant donnerait
+#: « Votre agro Douala investit dans ses lignes ». On ne le préfixe que pour
+#: les pages qui leur appartiennent vraiment.
+_POSSESSIVE_KINDS = frozenset({"public_website", "public_registry", "job_posting"})
+
+
+def _subject_from_source(source_title: str, source_kind: str = "") -> str:
+    """Objet construit sur le titre de leur propre page.
+
+    Un deux-points dans le titre (« Offre : technicien… ») donnerait une
+    phrase bancale ; on le remplace par un tiret, qui passe bien en objet.
+    """
+    title = source_title.strip().rstrip(".")
+    if not title:
+        return "Votre projet"
+    if " : " in title:
+        before, _, after = title.partition(" : ")
+        return f"Votre {before.strip().lower()} — {after.strip()}"
+    if source_kind in _POSSESSIVE_KINDS:
+        return f"{_possessive(title)} {title[0].lower() + title[1:]}"
+    return f"À propos de : {title}"
+
+
+def _possessive(title: str) -> str:
+    """« Votre » ou « Vos », selon que le premier mot est au pluriel.
+
+    « Votre inscriptions 2026 » saute aux yeux ; une faute d'accord dans
+    l'objet suffit à faire classer le message.
+    """
+    first = title.strip().split()[0] if title.strip() else ""
+    stripped = first.rstrip(".,;:")
+    # Les mots invariables en -s ou -x au singulier sont rares et identifiés.
+    invariables = {"processus", "cours", "congres", "proces", "prix", "choix", "corpus"}
+    import unicodedata
+
+    plain = "".join(
+        c for c in unicodedata.normalize("NFKD", stripped.lower()) if not unicodedata.combining(c)
+    )
+    if plain in invariables or len(plain) < 3:
+        return "Votre"
+    return "Vos" if plain.endswith(("s", "x")) else "Votre"
+
+
+def _subject_from_need(need: str, org: str) -> str:
+    words = need.strip().split()
+    fragment = " ".join(words[:6]).rstrip(",.")
+    return fragment[0].upper() + fragment[1:] if fragment else f"Question — {org}"
+
+
+def _subject_without_signal(product_code: str, org: str) -> str:
+    topic = {
+        "maintrix": "la maintenance",
+        "educore": "les inscriptions",
+    }.get(product_code, "ce sujet")
+    return f"Qui suit {topic} chez {org} ?"

@@ -1,0 +1,101 @@
+# Règles d'alerte Prometheus pour TechLearn Growth Agent.
+#
+# ENGENDRÉ — ne pas modifier à la main.
+#   python -m growth_agent.ops.render_alert_rules > monitoring/alerts.rules.yml
+#
+# Les seuils vivent dans apps/api/src/growth_agent/services/observability.py
+# (ALERT_RULES), d'où les lit aussi /api/v1/system/alerts.
+
+groups:
+  - name: growth-agent
+    rules:
+      - alert: EnvoiReelActiveSansAutorisation
+        expr: growth_agent_email_sending_enabled > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: growth-agent
+        annotations:
+          summary: "L'envoi réel d'emails est activé."
+          runbook: "Vérifier qu'un procès-verbal de mise en service autorise l'envoi réel (domaine, SPF/DKIM/DMARC, cadre juridique). Sinon, repasser GA_EMAIL_SENDING_ENABLED à false immédiatement."
+      - alert: EnvoisIssueInconnue
+        expr: growth_agent_deliveries_uncertain > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: growth-agent
+        annotations:
+          summary: "Des envois se sont terminés sans réponse lisible du fournisseur."
+          runbook: "Ces messages sont peut-être partis. Ils ne seront jamais rejoués automatiquement. Consulter le journal du fournisseur, puis trancher message par message. Ne pas relancer en masse."
+      - alert: ReservationsAbandonnees
+        expr: growth_agent_reservations_stale > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: growth-agent
+        annotations:
+          summary: "Des réservations d'envoi sont restées en attente."
+          runbook: "Une réservation de plus de 15 minutes signale un processus mort entre la réservation et l'envoi. Le message correspondant est bloqué tant qu'un humain n'a pas tranché."
+      - alert: EnvoisBloquesEnHausse
+        expr: growth_agent_sends_blocked_24h > 20
+        for: 10m
+        labels:
+          severity: warning
+          service: growth-agent
+        annotations:
+          summary: "Beaucoup d'envois bloqués sur 24 heures."
+          runbook: "Une hausse soudaine signale un problème de données ou de configuration, pas une série de refus légitimes. Regarder la répartition par motif dans /api/v1/system/alerts avant toute action."
+      - alert: PurgeEnRetard
+        expr: growth_agent_purge_last_success_age_seconds > 172800
+        for: 10m
+        labels:
+          severity: warning
+          service: growth-agent
+        annotations:
+          summary: "Aucune purge réussie depuis plus de 48 heures."
+          runbook: "La purge est quotidienne. Deux jours sans succès signifie que des données dépassent leur durée de conservation. Vérifier la tâche planifiée et /api/v1/system/retention/runs."
+      - alert: PurgeEnEchec
+        expr: growth_agent_purge_failures_24h > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: growth-agent
+        annotations:
+          summary: "Une purge a échoué ou a été interrompue dans les 24 dernières heures."
+          runbook: "Lire `error_message` dans /api/v1/system/retention/runs. La purge étant idempotente, la relancer est sans danger : elle repart des enregistrements encore échus."
+      - alert: PurgeArreteeParGardeFou
+        expr: growth_agent_purge_blocked_24h > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: growth-agent
+        annotations:
+          summary: "Une purge a été arrêtée par un garde-fou."
+          runbook: "Ce n'est pas une panne : le volume à supprimer dépassait le plafond, et le garde-fou a fait son travail. Lire `stopped_reason` dans /api/v1/system/retention/runs et vérifier d'où vient le volume avant de relever le plafond. Ne jamais le relever pour faire passer une purge qu'on n'a pas expliquée."
+      - alert: SauvegardeEnRetard
+        expr: growth_agent_backup_last_success_age_seconds > 172800
+        for: 2m
+        labels:
+          severity: critical
+          service: growth-agent
+        annotations:
+          summary: "Aucune sauvegarde réussie depuis plus de 48 heures."
+          runbook: "Vérifier la tâche de sauvegarde et l'espace disque de destination. Une sauvegarde jamais restaurée n'étant pas une sauvegarde, profiter de l'incident pour rejouer une restauration d'essai."
+      - alert: BaseInjoignable
+        expr: growth_agent_database_up < 1
+        for: 2m
+        labels:
+          severity: critical
+          service: growth-agent
+        annotations:
+          summary: "La base de données ne répond pas."
+          runbook: "La sonde de disponibilité renvoie 503 et le trafic doit être retiré. Ne pas redémarrer l'application : elle n'est pas en cause."
+      - alert: ConfigurationIncoherente
+        expr: growth_agent_configuration_warnings > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: growth-agent
+        annotations:
+          summary: "La configuration comporte des avertissements."
+          runbook: "Détail dans /health. Corriger avant toute opération commerciale."

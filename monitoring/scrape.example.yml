@@ -1,0 +1,19 @@
+# Extrait de configuration Prometheus. À adapter, pas à copier tel quel.
+scrape_configs:
+  - job_name: growth-agent
+    # Toutes les 60 s : les mesures sont des agrégats de base de données, pas
+    # des compteurs en mémoire. Les relever toutes les 5 s coûterait des
+    # requêtes sans rien apprendre de plus.
+    scrape_interval: 60s
+    metrics_path: /metrics
+    scheme: https
+    authorization:
+      type: Bearer
+      # Jamais la valeur en clair ici : le fichier est versionné chez la
+      # plupart des équipes.
+      credentials_file: /etc/prometheus/growth-agent.token
+    static_configs:
+      - targets: ["growth.example.org"]
+
+rule_files:
+  - /etc/prometheus/rules/growth-agent.rules.yml

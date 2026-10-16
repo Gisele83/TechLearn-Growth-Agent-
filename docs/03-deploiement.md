@@ -174,15 +174,22 @@ valide ; HTTP redirige vers HTTPS ; les en-têtes de sécurité sont présents.
 
 ### Étape 7 — Sauvegarde et restauration
 
-```bash
-# Sauvegarde quotidienne, chiffrée
-docker compose exec -T db pg_dump -U growth growth_agent \
-  | gzip | gpg --encrypt --recipient <CLE> > backup-$(date +%F).sql.gz.gpg
-```
+Utiliser `monitoring/backup.sh`, qui fait le dump au format `custom`, le
+chiffre, **vérifie que l'archive est lisible**, et seulement alors touche le
+fichier témoin lu par la supervision. Le poser en tâche planifiée
+quotidienne, avec `GA_BACKUP_STAMP_PATH` pointant sur le même fichier que la
+configuration de l'application.
 
 **Vérification — la seule qui compte.** Restaurer la sauvegarde sur une base
 vierge et vérifier que l'application démarre dessus. Une sauvegarde jamais
-restaurée n'est pas une sauvegarde.
+restaurée n'est pas une sauvegarde. Procédure pas à pas dans
+`docs/08-supervision.md`, section « Épreuve de restauration ».
+
+**Attention à la rétention des sauvegardes.** Une sauvegarde prise avant une
+purge, restaurée après, réintroduit les données purgées en clair — vérifié
+en laboratoire sur PostgreSQL. La durée de conservation des sauvegardes doit
+donc être cohérente avec celle des données, et toute restauration réelle doit
+être suivie d'une purge.
 
 ## Retour arrière
 
@@ -203,12 +210,25 @@ la base. Il n'existe aucune situation où elle est le bon geste en production.
 
 ## Supervision
 
-Au minimum : la sonde `/health` interrogée toutes les minutes, l'espace disque,
-le succès de la sauvegarde quotidienne, et l'expiration du certificat.
+Détail complet dans `docs/08-supervision.md`, qui donne pour chaque alerte le
+geste associé. En résumé :
 
-Une alerte dédiée mérite d'être posée sur le nombre d'**envois bloqués** : une
-hausse soudaine signale un problème de données ou de configuration, et c'est
-le genre de signal qu'on ne voit pas sans le chercher.
+| Sonde | Pour qui | Fréquence |
+|---|---|---|
+| `/health/live` | l'orchestrateur, pour redémarrer | 10 s |
+| `/health/ready` | le répartiteur, pour router | 10 s |
+| `/metrics` | le collecteur | 60 s |
+
+`/health/ready` renvoie 503 si la base ne répond pas ou si le schéma n'est
+pas à la révision attendue — un conteneur démarré avant la fin des migrations
+doit se retirer du trafic, pas servir des erreurs.
+
+`/metrics` exige `GA_METRICS_TOKEN` en `Bearer` et répond 404 sans lui.
+`monitoring/alerts.rules.yml` porte les règles ; il est engendré depuis le
+code, et un test échoue s'il diverge.
+
+Restent hors du périmètre de l'application, à poser sur l'hôte : l'espace
+disque et l'expiration du certificat.
 
 ## Intégration continue
 
@@ -225,8 +245,10 @@ déploiement automatique demanderait de confier des identifiants de production
 - [ ] Migrations appliquées
 - [ ] TLS valide, redirection HTTP en place
 - [ ] Recette multi-rôles passée
-- [ ] Sauvegarde **et restauration** testées
-- [ ] Supervision en place
+- [ ] Sauvegarde **et restauration** testées sur l'instance de production
+- [ ] `GA_METRICS_TOKEN` et `GA_BACKUP_STAMP_PATH` posés
+- [ ] Règles d'alerte chargées, destinataire nommé
+- [ ] Supervision en place (voir `docs/08-supervision.md`)
 - [ ] Retour arrière documenté et essayé
 - [ ] Connecteurs produits confirmés en mode simulé
 - [ ] Procès-verbal de mise en service signé

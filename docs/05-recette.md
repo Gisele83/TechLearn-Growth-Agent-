@@ -214,6 +214,38 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | Pas de métrique factice | `test_ui.test.tsx` | ✅ |
 | Tests Playwright automatisés | — | ❌ Vérification manuelle seulement |
 
+## Supervision
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| La vivacité ne dépend d'aucune dépendance | `test_liveness_never_depends_on_anything` | ✅ |
+| La disponibilité retire le trafic si le schéma est en retard | `test_readiness_refuses_traffic_when_the_schema_is_behind` | ✅ |
+| Sondes et métriques hors limiteur de débit | `test_the_probes_are_not_rate_limited` | ✅ |
+| /metrics refusé sans jeton configuré | `test_metrics_are_refused_when_no_token_is_configured` | ✅ |
+| /metrics refusé avec un mauvais jeton | `test_metrics_require_the_right_token` | ✅ |
+| Aucune donnée personnelle dans les métriques | `test_no_personal_data_reaches_the_metrics` | ✅ |
+| Étiquettes bornées à des ensembles fermés | `test_label_values_stay_within_closed_sets` | ✅ |
+| Simulé et réel comptés à part | `test_simulated_and_real_sends_are_counted_apart` | ✅ |
+| Blocages ventilés par motif | `test_blocked_sends_are_split_by_reason` | ✅ |
+| Réservation abandonnée détectée | `test_an_old_reservation_reveals_a_dead_worker` | ✅ |
+| Une répétition de purge ne compte pas comme une purge | `test_a_dry_run_does_not_count_as_a_purge` | ✅ |
+| Les métriques utilisent les statuts que le runner écrit | `test_the_metrics_use_the_statuses_the_runner_actually_writes` | ✅ |
+| Un arrêt par garde-fou n'est pas un échec | `test_a_guardrail_stop_is_not_reported_as_a_failure` | ✅ |
+| Chaque alerte porte un geste | `test_every_alert_carries_a_runbook` | ✅ |
+| Le fichier de règles ne diverge pas du code | `test_the_alert_rules_file_matches_the_code` | ✅ |
+| Alertes accessibles sans pile Prometheus | `test_the_alerts_endpoint_needs_authentication` | ✅ |
+
+## Sauvegarde et restauration
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Sauvegarde PostgreSQL réelle prise | Laboratoire, 16/10/2026 — `pg_dump --format=custom`, 21 tables | ✅ |
+| Archive vérifiée sans être appliquée | `pg_restore --list` | ✅ |
+| Restauration sur base vierge | Laboratoire, 16/10/2026 | ✅ |
+| L'application démarre sur la base restaurée | `/health/ready` → 200, révision en tête | ✅ |
+| Conséquence de la restauration sur la purge | `docs/08-supervision.md` | ✅ documentée |
+| Restauration éprouvée sur l'instance de **production** | — | ❌ **Non fait** (aucune instance) |
+
 ## Verdict
 
 **Prêt pour un usage interne en mode simulé.** Le parcours complet fonctionne

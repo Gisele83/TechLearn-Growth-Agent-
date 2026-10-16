@@ -10,8 +10,21 @@ from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-#: Chemins exemptés : la sonde de santé doit rester joignable sous charge.
-EXEMPT_PATHS = frozenset({"/health", "/docs", "/openapi.json", "/redoc"})
+#: Chemins exemptés : les sondes et le collecteur de métriques doivent rester
+#: joignables sous charge. Les limiter revient à se rendre aveugle au moment
+#: précis où l'on a besoin de voir — et à faire retirer du trafic une instance
+#: qui n'avait pour tout défaut que d'être occupée.
+EXEMPT_PATHS = frozenset(
+    {
+        "/health",
+        "/health/live",
+        "/health/ready",
+        "/metrics",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    }
+)
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):

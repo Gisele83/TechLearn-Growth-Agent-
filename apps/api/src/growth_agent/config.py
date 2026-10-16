@@ -107,6 +107,17 @@ class Settings(BaseSettings):
     # qu'il ne permet pas d'exercer : l'envoi réel est donc refusé.
     public_base_url: str = ""
 
+    # --- Supervision ---------------------------------------------------------
+    #: Jeton présenté par le collecteur de métriques. Vide : l'endpoint
+    #: /metrics est refusé. Les métriques portent des chiffres commerciaux —
+    #: les laisser lisibles sans authentification serait une fuite.
+    metrics_token: str = ""
+    #: Fichier témoin touché par la tâche de sauvegarde après un transfert
+    #: réussi. Un fichier plutôt qu'une table : une sauvegarde doit pouvoir
+    #: être constatée même quand la base est en panne, c'est-à-dire
+    #: précisément quand cela compte. Vide : la mesure n'est pas relevée.
+    backup_stamp_path: str = ""
+
     # --- Identité de l'expéditeur --------------------------------------------
     # Un message de prospection est signé par une personne, pas par un outil.
     # Sans nom configuré, la rédaction est refusée : un message anonyme est le
@@ -242,6 +253,16 @@ class Settings(BaseSettings):
                 warnings.append(
                     f"Connecteur {product} marqué actif mais incomplet : repli sur le mock."
                 )
+        if self.is_production and not self.metrics_token:
+            warnings.append(
+                "GA_METRICS_TOKEN absent : /metrics est refusé, donc aucune "
+                "supervision ne lit l'état de cette instance."
+            )
+        if self.is_production and not self.backup_stamp_path:
+            warnings.append(
+                "GA_BACKUP_STAMP_PATH absent : l'âge de la dernière sauvegarde "
+                "n'est pas mesuré, et son absence ne déclenchera aucune alerte."
+            )
         return warnings
 
 

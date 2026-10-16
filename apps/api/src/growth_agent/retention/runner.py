@@ -38,6 +38,15 @@ class PurgeLockBusy(Exception):
     """Une autre exécution est en cours."""
 
 
+#: Statuts possibles d'une exécution de purge. Nommés ici pour que la
+#: supervision n'ait pas à les deviner — elle les avait devinés, et faux.
+PURGE_SUCCEEDED = "succeeded"
+PURGE_BLOCKED = "blocked"
+PURGE_FAILED = "failed"
+PURGE_INTERRUPTED = "interrupted"
+PURGE_RUNNING = "running"
+
+
 def reclaim_stale_runs(session: Session, settings: Settings | None = None) -> list[PurgeRun]:
     """Marque `interrupted` les exécutions dont le battement de cœur est figé."""
     settings = settings or get_settings()
@@ -52,7 +61,7 @@ def reclaim_stale_runs(session: Session, settings: Settings | None = None) -> li
         ).scalars()
     )
     for run in stale:
-        run.status = "interrupted"
+        run.status = PURGE_INTERRUPTED
         run.finished_at = default_now()
         run.stopped_reason = (
             "Battement de cœur figé au-delà du délai : exécution considérée comme "
@@ -101,7 +110,7 @@ def run_purge(
         run = PurgeRun(
             # Une simulation dont le plan est bloqué rapporte « bloqué » : elle
             # annonce ce que ferait une exécution réelle, refus compris.
-            status="blocked" if report.plan and report.plan.blocked else "succeeded",
+            status=PURGE_BLOCKED if report.plan and report.plan.blocked else PURGE_SUCCEEDED,
             dry_run=True,
             triggered_by=actor,
             started_at=report.started_at,
@@ -135,7 +144,7 @@ def run_purge(
 
     started = default_now()
     run = PurgeRun(
-        status="running",
+        status=PURGE_RUNNING,
         dry_run=False,
         triggered_by=actor,
         started_at=started,
@@ -158,13 +167,13 @@ def run_purge(
         service = PurgeService(session, settings=settings)
         report = service.apply(dry_run=False, actor=actor, now=started, on_batch=_on_batch)
     except SafetyStop as exc:
-        run.status = "blocked"
+        run.status = PURGE_BLOCKED
         run.stopped_reason = str(exc)
         run.finished_at = default_now()
         session.commit()
         raise
     except Exception as exc:
-        run.status = "failed"
+        run.status = PURGE_FAILED
         # Une erreur SQLAlchemy porte l'instruction ET ses paramètres : une
         # adresse email peut s'y trouver. On masque avant de stocker, et on
         # tronque ensuite — dans cet ordre, sinon la troncature pourrait
@@ -175,7 +184,7 @@ def run_purge(
         logger.exception("Échec de la purge %s", run.id)
         raise
 
-    run.status = "blocked" if report.plan and report.plan.blocked else "succeeded"
+    run.status = PURGE_BLOCKED if report.plan and report.plan.blocked else PURGE_SUCCEEDED
     run.counts = dict(report.counts)
     run.stopped_reason = report.stopped_reason
     run.finished_at = report.finished_at or default_now()

@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     search_api_key: str = ""
 
     # --- Messagerie ----------------------------------------------------------
+    #: mock | smtp | sendgrid
     email_provider: str = "mock"
     email_sending_enabled: bool = False
     email_from: str = ""
@@ -85,6 +86,21 @@ class Settings(BaseSettings):
     email_smtp_port: int = 587
     email_smtp_user: str = ""
     email_smtp_password: str = ""
+    # --- SendGrid ------------------------------------------------------------
+    sendgrid_api_key: str = ""
+    sendgrid_base_url: str = "https://api.sendgrid.com"
+    #: Bac à sable : SendGrid valide la requête et **ne livre rien**. C'est la
+    #: seule façon d'éprouver l'intégration réelle — authentification,
+    #: expéditeur vérifié, forme de la charge — sans qu'un message atteigne
+    #: qui que ce soit. Laisser à `true` jusqu'au procès-verbal de mise en
+    #: service.
+    sendgrid_sandbox_mode: bool = True
+    #: Boîte **réellement surveillée** à laquelle les réponses arrivent, quand
+    #: l'expéditeur n'en accepte pas. Vide tant qu'aucune boîte n'est
+    #: confirmée : les messages cessent alors d'inviter à répondre, plutôt que
+    #: de promettre un droit qui se perdrait.
+    reply_to_email: str = ""
+
     email_max_per_contact_per_30_days: int = 2
     email_max_per_campaign_per_day: int = 50
 
@@ -215,6 +231,20 @@ class Settings(BaseSettings):
             )
         return False
 
+    def replies_are_monitored(self) -> bool:
+        """Une réponse envoyée par un prospect atteint-elle quelqu'un ?
+
+        C'est la question qui décide si un message a le droit d'écrire
+        « répondez STOP ». Promettre un geste qui se perd est pire que ne
+        rien promettre : la personne croit s'être opposée.
+        """
+        if self.reply_to_email.strip():
+            return True
+        sender = self.email_from.strip()
+        # Pas d'expéditeur du tout : rien ne garantit qu'une réponse arrive
+        # quelque part. On ne le suppose pas.
+        return bool(sender) and not _is_noreply(sender)
+
     def can_send_email(self) -> bool:
         """Conditions cumulatives de l'envoi réel.
 
@@ -222,6 +252,8 @@ class Settings(BaseSettings):
         désinscription du message ne mènerait nulle part. Mieux vaut ne pas
         envoyer que promettre un droit qu'on ne permet pas d'exercer.
         """
+        if self.email_provider == "sendgrid" and not self.sendgrid_api_key:
+            return False
         return (
             self.email_sending_enabled
             and self.email_provider != "mock"
@@ -253,6 +285,22 @@ class Settings(BaseSettings):
                 warnings.append(
                     f"Connecteur {product} marqué actif mais incomplet : repli sur le mock."
                 )
+        if self.email_provider == "sendgrid" and not self.sendgrid_api_key:
+            warnings.append(
+                "GA_EMAIL_PROVIDER=sendgrid sans GA_SENDGRID_API_KEY : repli sur le mock."
+            )
+        if self.can_send_email() and self.sendgrid_sandbox_mode:
+            warnings.append(
+                "SendGrid en bac à sable : les requêtes sont validées mais "
+                "aucun message n'est livré."
+            )
+        if _is_noreply(self.email_from) and not self.reply_to_email:
+            warnings.append(
+                f"Expéditeur « {self.email_from} » sans GA_REPLY_TO_EMAIL : "
+                "aucune réponse n'arriverait. Les messages n'invitent donc pas "
+                "à répondre, et l'opposition passe par le seul lien de "
+                "désinscription."
+            )
         if self.is_production and not self.metrics_token:
             warnings.append(
                 "GA_METRICS_TOKEN absent : /metrics est refusé, donc aucune "
@@ -264,6 +312,17 @@ class Settings(BaseSettings):
                 "n'est pas mesuré, et son absence ne déclenchera aucune alerte."
             )
         return warnings
+
+
+#: Préfixes d'adresse qui n'acceptent pas de réponse. La liste est courte
+#: et volontairement littérale : il s'agit de reconnaître une intention, pas
+#: de deviner si une boîte existe.
+_NOREPLY_PREFIXES = ("noreply", "no-reply", "no_reply", "donotreply", "do-not-reply")
+
+
+def _is_noreply(address: str) -> bool:
+    local = address.partition("@")[0].strip().lower()
+    return any(local == prefix or local.startswith(f"{prefix}+") for prefix in _NOREPLY_PREFIXES)
 
 
 @lru_cache

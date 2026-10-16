@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import pytest
 
+from growth_agent.services.opt_out_language import mentions_opt_out
+
 
 @pytest.fixture
 def journey(client, seeded, auth):
@@ -73,7 +75,10 @@ def test_full_journey_from_discovery_to_pilot(journey):
         json={"prospect_id": target["id"], "template_id": template["id"]},
     ).json()
     assert draft["status"] == "draft"
-    assert "stop" in draft["body"].lower()
+    # Le message doit offrir un moyen de s'opposer. Lequel dépend de la
+    # configuration : « répondez STOP » n'a de sens que si une boîte reçoit
+    # les réponses, sinon c'est le lien de désinscription.
+    assert mentions_opt_out(draft["body"])
 
     # 4. L'envoi est refusé sans approbation ----------------------------------
     premature = client.post(f"/api/v1/drafts/{draft['id']}/send", headers=com).json()

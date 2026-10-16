@@ -19,6 +19,7 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from growth_agent.config import Settings, get_settings
 from growth_agent.models.catalog import Product
 from growth_agent.models.enums import (
     DeliveryState,
@@ -91,6 +92,7 @@ def compute_product_kpis(
     window_days: int = DEFAULT_WINDOW_DAYS,
     now: datetime | None = None,
     include_simulated: bool = False,
+    settings: Settings | None = None,
 ) -> ProductKPIs:
     """Indicateurs d'un produit.
 
@@ -99,6 +101,7 @@ def compute_product_kpis(
     bilan d'une campagne serait faussé par les essais qui l'ont précédée.
     `include_simulated` permet de les voir, explicitement.
     """
+    settings = settings or get_settings()
     moment = now or datetime.now(UTC)
     window_start = moment - timedelta(days=window_days)
 
@@ -218,6 +221,12 @@ def compute_product_kpis(
         notes.append(
             f"{uncertain_total} envoi(s) d'issue inconnue, en attente d'arbitrage : "
             "ni comptés comme remis, ni comme échoués."
+        )
+    if not settings.replies_are_monitored():
+        notes.append(
+            "Aucune boîte ne reçoit les réponses : le taux de réponse ne "
+            "reflète que les réponses saisies à la main, pas celles que les "
+            "prospects ont pu envoyer."
         )
     if funnel.contacted == 0:
         notes.append(

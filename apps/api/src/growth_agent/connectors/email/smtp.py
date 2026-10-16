@@ -27,6 +27,15 @@ from growth_agent.connectors.email.base import (
     EmailSendResult,
 )
 
+#: Exceptions qui annoncent un refus **définitif** du serveur, par opposition
+#: à une coupure ou un délai dépassé, dont l'issue est inconnue.
+PERMANENT_REFUSALS = (
+    smtplib.SMTPRecipientsRefused,
+    smtplib.SMTPSenderRefused,
+    smtplib.SMTPDataError,
+    smtplib.SMTPNotSupportedError,
+)
+
 
 class SMTPEmailProvider(EmailProvider):
     provider = "smtp"
@@ -40,6 +49,7 @@ class SMTPEmailProvider(EmailProvider):
         password: str,
         from_email: str,
         sending_enabled: bool,
+        reply_to: str = "",
         timeout: float = 20.0,
         smtp_factory: Any = None,
     ) -> None:
@@ -54,6 +64,7 @@ class SMTPEmailProvider(EmailProvider):
         self._username = username
         self._password = password
         self._from_email = from_email
+        self._reply_to = reply_to
         self._timeout = timeout
         self._smtp_factory = smtp_factory or smtplib.SMTP
         self._sent_keys: set[str] = set()
@@ -71,18 +82,32 @@ class SMTPEmailProvider(EmailProvider):
         mime["From"] = message.from_email or self._from_email
         mime["To"] = message.to_email
         mime["Subject"] = message.subject
-        if message.reply_to:
-            mime["Reply-To"] = message.reply_to
+        reply_to = message.reply_to or self._reply_to
+        if reply_to:
+            mime["Reply-To"] = reply_to
         for key, value in message.headers.items():
             mime[key] = value
         mime.set_content(message.body)
 
         context = ssl.create_default_context()
-        with self._smtp_factory(self._host, self._port, timeout=self._timeout) as client:
-            client.starttls(context=context)
-            if self._username:
-                client.login(self._username, self._password)
-            client.send_message(mime)
+        try:
+            with self._smtp_factory(self._host, self._port, timeout=self._timeout) as client:
+                client.starttls(context=context)
+                if self._username:
+                    client.login(self._username, self._password)
+                client.send_message(mime)
+        except PERMANENT_REFUSALS as exc:
+            # Refus définitif annoncé par le serveur : destinataire inconnu,
+            # expéditeur rejeté, message refusé. Rien n'est parti. Sans cette
+            # distinction, l'exception remonterait au service d'envoi, qui
+            # classerait l'issue comme « inconnue » — et le message resterait
+            # bloqué pour toujours en attente d'un arbitrage qui n'avait pas
+            # lieu d'être.
+            return EmailSendResult(
+                accepted=False,
+                provider=self.provider,
+                detail=f"Le serveur SMTP a refusé le message ({type(exc).__name__}).",
+            )
 
         self._sent_keys.add(idempotency_key)
         return EmailSendResult(

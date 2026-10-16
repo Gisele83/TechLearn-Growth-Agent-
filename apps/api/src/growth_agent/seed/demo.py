@@ -192,8 +192,8 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> dict[s
                 "sans passer par un tableur. Si c'est utile, je vous montre le "
                 "suivi d'un arrêt sur un de vos équipements, en 30 minutes.\n\n"
                 "Est-ce un sujet d'actualité chez vous ?\n\n"
-                "Si ce n'est pas votre sujet, répondez STOP et je ne vous "
-                "recontacte pas.\n\n"
+                "Si ce n'est pas votre sujet, le lien de désinscription en bas "
+                "de ce message vous retire de nos envois.\n\n"
                 "{{signature}}"
             ),
         ),
@@ -208,8 +208,8 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> dict[s
                 "dans un seul outil. Si c'est utile, je vous montre une "
                 "inscription d'élève sur vos propres cas, en 30 minutes.\n\n"
                 "Est-ce un sujet d'actualité chez vous ?\n\n"
-                "Si ce n'est pas votre sujet, répondez STOP et je ne vous "
-                "recontacte pas.\n\n"
+                "Si ce n'est pas votre sujet, le lien de désinscription en bas "
+                "de ce message vous retire de nos envois.\n\n"
                 "{{signature}}"
             ),
         ),

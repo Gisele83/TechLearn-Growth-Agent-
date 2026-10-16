@@ -37,15 +37,15 @@ from growth_agent.models.enums import (
 from growth_agent.models.outreach import MessageDraft, MessageTemplate
 from growth_agent.models.prospect import ProspectCandidate, ProspectSource
 from growth_agent.services.audit import record_audit
+from growth_agent.services.opt_out_language import closing_line, mentions_opt_out
 from growth_agent.services.suppression import check_suppression
 from growth_agent.services.writing import StyleReport, analyze_message
 
 TEMPLATE_VARIABLE_RE = re.compile(r"\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}")
 URL_RE = re.compile(r"https?://[^\s<>\"')]+")
 
-OPT_OUT_MARKERS = ("stop", "désinscri", "desinscri", "opposition", "ne plus recevoir")
 
-SYSTEM_PROMPT = """Tu écris le premier message d'un commercial à un
+SYSTEM_PROMPT_TEMPLATE = """Tu écris le premier message d'un commercial à un
 prospect qu'il ne connaît pas. En français, et de façon à ce qu'on ne
 devine pas qu'une machine l'a rédigé.
 
@@ -89,12 +89,23 @@ Exemple de ce qu'on attend :
 
     Est-ce un sujet d'actualité chez vous ?
 
-    Si ce n'est pas votre sujet, répondez STOP et je ne vous recontacte pas.
+    {ligne_opposition}
 
     Awa Njoya
     TechLearn
 
 Réponds uniquement par un objet JSON conforme au schéma demandé."""
+
+
+def system_prompt(*, replies_are_monitored: bool) -> str:
+    """Le prompt, avec la seule ligne qui dépend de la configuration.
+
+    Quand aucune boîte ne reçoit les réponses, le message ne doit pas inviter
+    à répondre : il renvoie au lien de désinscription, qui, lui, fonctionne.
+    """
+    return SYSTEM_PROMPT_TEMPLATE.replace(
+        "{ligne_opposition}", closing_line(replies_are_monitored=replies_are_monitored)
+    )
 
 
 class ComposedMessage(BaseModel):
@@ -188,6 +199,7 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             source_title=sources[0].title if sources else "",
             source_kind=sources[0].kind if sources else "",
             signature=_signature(settings),
+            replies_are_monitored=settings.replies_are_monitored(),
             template=template,
         )
         if composed is None:
@@ -226,7 +238,7 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
                 )
 
         # 4. Moyen d'opposition ----------------------------------------------
-        if not blocked_reason and not _mentions_opt_out(body):
+        if not blocked_reason and not mentions_opt_out(body):
             blocked_reason = "Le message ne propose aucun moyen de s'opposer à la prospection."
 
         # 5. Naturel du texte ---------------------------------------------------
@@ -312,6 +324,7 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
         source_kind: str,
         signature: str,
         template: MessageTemplate | None,
+        replies_are_monitored: bool,
     ) -> tuple[ComposedMessage | None, str]:
         template_hint = ""
         if template is not None:
@@ -322,7 +335,7 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
             )
 
         request = LLMRequest(
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=system_prompt(replies_are_monitored=replies_are_monitored),
             user_prompt=(
                 f"Produit : {product.name} — {product.description}\n"
                 f"Organisation : {prospect.organization_name}\n"
@@ -342,6 +355,9 @@ class OutreachComposerAgent(BaseAgent[CompositionOutcome]):
                 "source_kind": source_kind,
                 "signature": signature,
                 "evidence_urls": known_urls,
+                # Transmise explicitement : un fournisseur hors ligne ne relit
+                # pas le prompt, et doit pourtant produire la bonne ligne.
+                "closing_line": closing_line(replies_are_monitored=replies_are_monitored),
                 "language": "fr",
             },
         )
@@ -389,11 +405,6 @@ def _best_quote(quotes: list[str]) -> str:
     """
     usable = [q.strip() for q in quotes if 20 <= len(q.strip()) <= 220]
     return max(usable, key=len) if usable else quotes[0].strip()[:220]
-
-
-def _mentions_opt_out(body: str) -> bool:
-    lowered = body.lower()
-    return any(marker in lowered for marker in OPT_OUT_MARKERS)
 
 
 def _signature(settings: Settings) -> str:

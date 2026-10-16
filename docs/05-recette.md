@@ -214,6 +214,31 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | Pas de métrique factice | `test_ui.test.tsx` | ✅ |
 | Tests Playwright automatisés | — | ❌ Vérification manuelle seulement |
 
+## Expédition et opposition
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Sans boîte de réponse, le message n'invite pas à répondre | `test_without_a_monitored_mailbox_the_message_does_not_invite_a_reply` | ✅ |
+| Le lien de désinscription est visible dans le texte | `test_the_sent_message_always_carries_a_visible_unsubscribe_link` | ✅ |
+| Le pied n'altère pas le texte approuvé | `test_the_footer_is_added_without_touching_the_stored_draft` | ✅ |
+| 15 formulations d'opposition reconnues | `test_every_realistic_phrasing_is_recognised` | ✅ |
+| Aucun faux positif sur une réponse ordinaire | `test_an_ordinary_reply_is_not_mistaken_for_an_objection` | ✅ |
+| Une réponse STOP bloque l'envoi suivant | `test_a_stop_reply_blocks_the_next_send_immediately` | ✅ |
+| L'opposition survit à un redémarrage | `test_the_objection_survives_a_restart` | ✅ |
+| SendGrid : refus définitif distingué d'une panne | `test_a_rejected_message_is_a_refusal_not_an_unknown_outcome` | ✅ |
+| SendGrid : expéditeur non vérifié traité comme un refus | `test_an_unverified_sender_is_a_refusal` | ✅ |
+| SendGrid : aucun suivi de clic ni d'ouverture | `test_nothing_is_tracked` | ✅ |
+| SendGrid : en-têtes RFC 8058 préservés | `test_the_unsubscribe_headers_survive_intact` | ✅ |
+| SendGrid : la clé n'apparaît pas dans la sonde | `test_the_healthcheck_never_reveals_the_key` | ✅ |
+| **Réception des réponses** | — | ❌ **Non fait** — aucune intégration de boîte entrante |
+| **Envoi réel vers une boîte de test** | — | ❌ **Non fait** — en attente de D2 et du procès-verbal |
+| **Taux de réponse et entonnoir démo/pilote** | — | ❌ **Non mesurables** tant que la réception n'existe pas |
+
+La réponse STOP est injectée dans l'analyste comme si elle venait d'arriver.
+Tout ce qui suit la détection est prouvé ; **la réception elle-même ne l'est
+pas**, et le produit le dit : `/api/v1/system/integrations` renvoie
+`inbound_integration: "aucune"` et `reply_analysis: "non opérationnelle"`.
+
 ## Supervision
 
 | Contrôle | Preuve | État |

@@ -199,6 +199,17 @@ def integrations(
             "provider": settings.email_provider,
             "sending_enabled": settings.email_sending_enabled,
             "effective_mode": "réel" if settings.can_send_email() else "simulé",
+            "sandbox_mode": settings.sendgrid_sandbox_mode
+            if settings.email_provider == "sendgrid"
+            else None,
+            "reply_to_configured": bool(settings.reply_to_email),
+            "replies_are_monitored": settings.replies_are_monitored(),
+            # La réception n'est pas branchée. Tant qu'elle ne l'est pas,
+            # l'analyse des réponses et le taux de réponse ne reposent que
+            # sur une saisie manuelle, et ne doivent pas être présentés
+            # comme opérationnels.
+            "inbound_integration": "aucune",
+            "reply_analysis": "non opérationnelle — réception non branchée",
             "max_per_contact_per_30_days": settings.email_max_per_contact_per_30_days,
             "max_per_campaign_per_day": settings.email_max_per_campaign_per_day,
         },

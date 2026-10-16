@@ -110,6 +110,16 @@ def campaign_educore(session, product_educore) -> Campaign:
 
 
 @pytest.fixture
+def ctx(session):
+    """Contexte d'exécution d'un agent."""
+    from growth_agent.agents.base import AgentContext
+
+    return AgentContext(
+        session=session, actor="testeur@exemple.example.org", actor_role="commercial"
+    )
+
+
+@pytest.fixture
 def crm() -> MockCRMAdapter:
     return MockCRMAdapter()
 

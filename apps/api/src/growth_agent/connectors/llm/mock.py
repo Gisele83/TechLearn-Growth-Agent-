@@ -23,6 +23,7 @@ from growth_agent.connectors.llm.base import (
     TokenBudget,
     estimate_tokens,
 )
+from growth_agent.services.opt_out_language import closing_line
 
 
 class MockLLMProvider(LLMProvider):
@@ -110,6 +111,11 @@ class MockLLMProvider(LLMProvider):
         need = (context.get("need_summary") or "").strip()
         source_title = (context.get("source_title") or "").strip()
         signature = (context.get("signature") or "").strip()
+        # La ligne d'opposition vient de l'appelant : elle dépend du fait
+        # qu'une boîte reçoive les réponses, que ce fournisseur ignore.
+        closing = (context.get("closing_line") or "").strip() or closing_line(
+            replies_are_monitored=False
+        )
         product_code = str(context.get("product_code", "")).lower()
 
         pitch = _PITCH.get(product_code, f"{product} répond à ce type d'organisation.")
@@ -146,7 +152,7 @@ class MockLLMProvider(LLMProvider):
             f"{opening}\n\n"
             f"{pitch} Si c'est utile, {demo}.\n\n"
             f"{ask}\n\n"
-            f"Si ce n'est pas votre sujet, répondez STOP et je ne vous recontacte pas.\n\n"
+            f"{closing}\n\n"
             f"{signature}"
         )
 

@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from growth_agent.agents.base import AgentContext
 from growth_agent.agents.conversation_analyst import ConversationAnalyst
 from growth_agent.agents.customer_success import CustomerSuccessAgent
 from growth_agent.agents.growth_analyst import GrowthAnalystAgent
@@ -27,14 +26,6 @@ from growth_agent.models.ops import AgentAction
 from growth_agent.models.outreach import MessageTemplate
 from growth_agent.models.prospect import ProspectCandidate, ProspectSource
 from growth_agent.services.suppression import add_suppression
-
-
-@pytest.fixture
-def ctx(session):
-    return AgentContext(
-        session=session, actor="testeur@exemple.example.org", actor_role="commercial"
-    )
-
 
 # --- Market Scout ------------------------------------------------------------
 

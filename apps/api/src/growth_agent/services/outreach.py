@@ -256,7 +256,7 @@ def send_draft(
     message = EmailMessage(
         to_email=draft.recipient_email,
         subject=draft.subject,
-        body=draft.body,
+        body=with_unsubscribe_footer(draft.body, unsubscribe_url),
         from_email=settings.email_from,
         campaign_id=str(draft.campaign_id or ""),
         product_code=str(draft.product_id),
@@ -340,6 +340,34 @@ def send_draft(
             if simulated
             else "Message remis au fournisseur."
         ),
+    )
+
+
+#: Séparateur du pied de message, repris de la convention Usenet que les
+#: clients de messagerie savent replier.
+FOOTER_SEPARATOR = "-- "
+
+
+def with_unsubscribe_footer(body: str, unsubscribe_url: str) -> str:
+    """Ajoute le lien de désinscription, visible, au bas du message.
+
+    L'en-tête `List-Unsubscribe` ne suffit pas : il alimente le bouton natif
+    de Gmail et d'Outlook, mais reste invisible pour qui lit le message dans
+    un autre client. Un destinataire doit pouvoir se retirer sans connaître
+    une fonction cachée de son logiciel.
+
+    Le pied est ajouté **à l'envoi**, pas à la rédaction, parce que le jeton
+    n'existe qu'à la réservation — il est unique par envoi et ne peut pas
+    être connu à l'avance. Conséquence assumée : le condensat d'approbation
+    porte sur le texte de l'auteur, pas sur ce pied, qui est une mention
+    légale fixe que personne ne modifie. L'aperçu d'approbation le montre
+    pour que le valideur voie la forme finale.
+    """
+    if not unsubscribe_url:
+        return body
+    return (
+        f"{body.rstrip()}\n\n{FOOTER_SEPARATOR}\n"
+        f"Pour ne plus recevoir de message de notre part : {unsubscribe_url}"
     )
 
 

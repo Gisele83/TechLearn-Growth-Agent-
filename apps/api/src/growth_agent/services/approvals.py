@@ -20,7 +20,12 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from growth_agent.models.enums import ApprovalDecision, ApprovalSubject, DraftStatus
+from growth_agent.models.enums import (
+    SENT_STATUSES,
+    ApprovalDecision,
+    ApprovalSubject,
+    DraftStatus,
+)
 from growth_agent.models.outreach import ApprovalRequest, MessageDraft
 from growth_agent.security.redaction import digest
 from growth_agent.services.audit import record_audit
@@ -195,7 +200,7 @@ def check_send_gate(
     """
     moment = now or datetime.now(UTC)
 
-    if draft.status == DraftStatus.SENT:
+    if draft.status in SENT_STATUSES:
         return ApprovalGate(allowed=False, reason="Ce brouillon a déjà été envoyé.")
     if draft.status not in {DraftStatus.APPROVED, DraftStatus.PENDING_APPROVAL}:
         return ApprovalGate(

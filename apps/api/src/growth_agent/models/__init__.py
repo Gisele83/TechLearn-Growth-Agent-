@@ -6,6 +6,7 @@ from growth_agent.models.enums import (
     ApprovalDecision,
     ApprovalSubject,
     CampaignStatus,
+    DeliveryState,
     DraftStatus,
     LegalBasis,
     OutreachChannel,
@@ -35,6 +36,7 @@ from growth_agent.models.outreach import (
     MessageTemplate,
     OutreachEvent,
     SuppressionEntry,
+    UnsubscribeToken,
 )
 from growth_agent.models.prospect import (
     CRMMapping,
@@ -53,6 +55,7 @@ __all__ = [
     "CRMMapping",
     "Campaign",
     "CampaignStatus",
+    "DeliveryState",
     "DraftStatus",
     "IdealCustomerProfile",
     "IntegrationConfig",
@@ -76,6 +79,7 @@ __all__ = [
     "SuppressionEntry",
     "SuppressionReason",
     "SuppressionScope",
+    "UnsubscribeToken",
     "User",
     "VerificationStatus",
     "WorkflowRun",

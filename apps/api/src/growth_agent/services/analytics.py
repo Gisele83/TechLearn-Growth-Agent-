@@ -16,11 +16,16 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from growth_agent.models.catalog import Product
-from growth_agent.models.enums import OutreachEventType, ProspectStage, VerificationStatus
+from growth_agent.models.enums import (
+    DeliveryState,
+    OutreachEventType,
+    ProspectStage,
+    VerificationStatus,
+)
 from growth_agent.models.outreach import OutreachEvent
 from growth_agent.models.prospect import ProspectCandidate
 
@@ -55,6 +60,12 @@ class ProductKPIs:
     qualified_organizations: int = 0
     verified_organizations: int = 0
     unknown_organizations: int = 0
+    #: Envois simulés sur la période. Exposé séparément, jamais ajouté à
+    #: `funnel.contacted` : une répétition n'est pas un contact.
+    simulated_total: int = 0
+    #: Envois dont l'issue n'a pas pu être lue. Ni remis, ni échoués —
+    #: en attente d'arbitrage humain.
+    uncertain_total: int = 0
     notes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -79,13 +90,31 @@ def compute_product_kpis(
     product_code: str = "",
     window_days: int = DEFAULT_WINDOW_DAYS,
     now: datetime | None = None,
+    include_simulated: bool = False,
 ) -> ProductKPIs:
+    """Indicateurs d'un produit.
+
+    Par défaut, **les répétitions ne sont pas comptées**. Un essai en
+    simulation ne doit pas apparaître comme une organisation contactée : le
+    bilan d'une campagne serait faussé par les essais qui l'ont précédée.
+    `include_simulated` permet de les voir, explicitement.
+    """
     moment = now or datetime.now(UTC)
     window_start = moment - timedelta(days=window_days)
 
     # On compte des ORGANISATIONS distinctes, pas des événements : un prospect
     # qui répond trois fois à un même message a répondu une fois. Sans cela, un
     # « taux de réponse » pourrait dépasser 100 %, ce qui ne veut rien dire.
+    # Une réservation sans suite — état « reserved », « failed » ou
+    # « uncertain » — n'est pas un envoi : seul `sent` compte.
+    real_only = [] if include_simulated else [OutreachEvent.is_simulated.is_(False)]
+    delivered = [
+        or_(
+            OutreachEvent.delivery_state.is_(None),
+            OutreachEvent.delivery_state == DeliveryState.SENT,
+        )
+    ]
+
     rows = session.execute(
         select(
             OutreachEvent.event_type,
@@ -96,6 +125,8 @@ def compute_product_kpis(
             OutreachEvent.occurred_at >= window_start,
             OutreachEvent.occurred_at <= moment,
             OutreachEvent.prospect_id.is_not(None),
+            *real_only,
+            *delivered,
         )
         .group_by(OutreachEvent.event_type)
     ).all()
@@ -110,6 +141,35 @@ def compute_product_kpis(
             .where(
                 OutreachEvent.product_id == product_id,
                 OutreachEvent.event_type == OutreachEventType.SEND_BLOCKED,
+                OutreachEvent.occurred_at >= window_start,
+                OutreachEvent.occurred_at <= moment,
+            )
+        ).scalar_one()
+    )
+
+    # Les envois d'issue inconnue sont comptés à part : ils n'appartiennent ni
+    # aux succès ni aux échecs, et ils demandent une décision humaine.
+    uncertain_total = int(
+        session.execute(
+            select(func.count())
+            .select_from(OutreachEvent)
+            .where(
+                OutreachEvent.product_id == product_id,
+                OutreachEvent.delivery_state == DeliveryState.UNCERTAIN,
+                OutreachEvent.occurred_at >= window_start,
+                OutreachEvent.occurred_at <= moment,
+            )
+        ).scalar_one()
+    )
+    simulated_total = int(
+        session.execute(
+            select(func.count())
+            .select_from(OutreachEvent)
+            .where(
+                OutreachEvent.product_id == product_id,
+                OutreachEvent.event_type == OutreachEventType.SENT,
+                OutreachEvent.is_simulated.is_(True),
+                OutreachEvent.delivery_state == DeliveryState.SENT,
                 OutreachEvent.occurred_at >= window_start,
                 OutreachEvent.occurred_at <= moment,
             )
@@ -149,6 +209,16 @@ def compute_product_kpis(
     )
 
     notes: list[str] = []
+    if simulated_total and not include_simulated:
+        notes.append(
+            f"{simulated_total} envoi(s) simulé(s) exclu(s) de ces chiffres : "
+            "aucun message n'a quitté la machine."
+        )
+    if uncertain_total:
+        notes.append(
+            f"{uncertain_total} envoi(s) d'issue inconnue, en attente d'arbitrage : "
+            "ni comptés comme remis, ni comme échoués."
+        )
     if funnel.contacted == 0:
         notes.append(
             "Aucun envoi sur la période : les taux de réponse et de conversion "
@@ -171,12 +241,18 @@ def compute_product_kpis(
         qualified_organizations=funnel.qualified,
         verified_organizations=verifications.get(VerificationStatus.VERIFIED, 0),
         unknown_organizations=verifications.get(VerificationStatus.UNKNOWN, 0),
+        simulated_total=simulated_total,
+        uncertain_total=uncertain_total,
         notes=notes,
     )
 
 
 def compute_all_kpis(
-    session: Session, *, window_days: int = DEFAULT_WINDOW_DAYS, now: datetime | None = None
+    session: Session,
+    *,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+    now: datetime | None = None,
+    include_simulated: bool = False,
 ) -> list[ProductKPIs]:
     products = list(session.execute(select(Product).order_by(Product.code)).scalars())
     return [
@@ -186,6 +262,7 @@ def compute_all_kpis(
             product_code=product.code,
             window_days=window_days,
             now=now,
+            include_simulated=include_simulated,
         )
         for product in products
     ]

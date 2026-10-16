@@ -20,7 +20,12 @@ from growth_agent.api.deps import (
 )
 from growth_agent.api.status_codes import UNPROCESSABLE_CONTENT
 from growth_agent.models.catalog import Campaign, Product
-from growth_agent.models.enums import ApprovalSubject, DraftStatus, ProspectStage
+from growth_agent.models.enums import (
+    SENT_STATUSES,
+    ApprovalSubject,
+    DraftStatus,
+    ProspectStage,
+)
 from growth_agent.models.outreach import (
     MessageDraft,
     MessageTemplate,
@@ -185,7 +190,7 @@ def edit_draft(
     portait sur l'ancien texte.
     """
     draft = _require_draft(session, draft_id)
-    if draft.status == DraftStatus.SENT:
+    if draft.status in SENT_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ce message a déjà été envoyé : il n'est plus modifiable.",
@@ -282,7 +287,7 @@ def create_approval(
                 "Corriger le message avant de demander une validation."
             ),
         )
-    if draft.status == DraftStatus.SENT:
+    if draft.status in SENT_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Ce message a déjà été envoyé."
         )

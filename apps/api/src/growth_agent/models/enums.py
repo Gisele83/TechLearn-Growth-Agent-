@@ -66,7 +66,12 @@ class DraftStatus(StrEnum):
     PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
+    #: Remis à un fournisseur réel.
     SENT = "sent"
+    #: Répétition : rien n'a quitté la machine. Distinct de SENT pour qu'une
+    #: simulation ne puisse jamais être lue, comptée ni affichée comme un
+    #: envoi réel.
+    SENT_SIMULATED = "sent_simulated"
     BLOCKED = "blocked"
 
 
@@ -111,6 +116,25 @@ class OutreachEventType(StrEnum):
     PILOT_STARTED = "pilot_started"
     DEAL_WON = "deal_won"
     DEAL_LOST = "deal_lost"
+
+
+class DeliveryState(StrEnum):
+    """Cycle de vie d'un envoi, du point de vue de ce qu'on sait réellement.
+
+    `RESERVED` est écrit **avant** de remettre le message au fournisseur : la
+    contrainte d'unicité sur la clé d'idempotence devient alors un verrou que
+    deux processus concurrents ne peuvent pas franchir ensemble.
+
+    `UNCERTAIN` est l'état le plus important : le fournisseur n'a ni accepté
+    ni refusé de façon lisible (coupure, délai dépassé). On ignore si le
+    message est parti. Il n'est donc ni rejoué ni effacé automatiquement —
+    renvoyer un message peut-être déjà reçu est pire que de ne rien faire.
+    """
+
+    RESERVED = "reserved"
+    SENT = "sent"
+    FAILED = "failed"
+    UNCERTAIN = "uncertain"
 
 
 class SuppressionReason(StrEnum):
@@ -164,3 +188,10 @@ class LegalBasis(StrEnum):
     CONSENT = "consent"
     EXISTING_RELATIONSHIP = "existing_relationship"
     UNDETERMINED = "undetermined"
+
+
+#: Statuts signifiant « ce message est parti ». Un brouillon qui en porte un
+#: n'est plus modifiable, plus approuvable, et plus renvoyable. Les deux y
+#: figurent : une répétition n'atteint personne, mais le brouillon a servi et
+#: le rejouer sèmerait la confusion sur ce qui a réellement été expédié.
+SENT_STATUSES: frozenset[str] = frozenset({DraftStatus.SENT, DraftStatus.SENT_SIMULATED})

@@ -76,6 +76,52 @@
 | Tout blocage est auditable | `test_every_block_leaves_an_auditable_event` | ✅ |
 | Double verrou sur l'envoi réel | `test_real_sending_requires_both_flag_and_provider` | ✅ |
 
+## Désinscription
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Le jeton porte 256 bits d'entropie | `test_token_carries_256_bits_of_entropy` | ✅ |
+| 200 jetons, aucun motif détectable | `test_tokens_are_never_repeated_and_look_random` | ✅ |
+| La base ne contient que l'empreinte | `test_database_never_stores_the_token_in_clear` | ✅ |
+| Le clic fonctionne sans compte | `test_one_click_post_works_without_authentication` | ✅ |
+| Recliquer confirme sans erreur | `test_one_click_post_is_idempotent` | ✅ |
+| Un jeton inconnu ne révèle rien | `test_unknown_token_reveals_nothing` | ✅ |
+| Un jeton révoqué cesse de marcher | `test_revoked_token_stops_working` | ✅ |
+| Le lien du message désinscrit vraiment | `test_link_from_the_sent_message_actually_unsubscribes` | ✅ |
+| La page ne charge aucune ressource tierce | `test_human_page_is_self_contained` | ✅ |
+| Le lien vit hors du préfixe d'API | `test_public_routes_are_outside_the_api_prefix` | ✅ |
+
+## Idempotence, pannes et concurrence
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Panne avant la remise : rien n'est parti, reprise refusée | `test_crash_before_handoff_leaves_a_reservation_and_blocks_the_retry` | ✅ |
+| Réponse illisible : issue inconnue, jamais rejouée | `test_provider_timeout_marks_the_send_uncertain_and_never_replays_it` | ✅ |
+| Panne après la remise : pas de doublon au redémarrage | `test_crash_after_handoff_does_not_send_twice_after_restart` | ✅ |
+| Refus explicite : la réservation est levée | `test_explicit_refusal_releases_the_reservation` | ✅ |
+| 12 travailleurs concurrents → 1 seul envoi | `test_twelve_concurrent_workers_send_exactly_one_message` *(PostgreSQL)* | ✅ |
+| La contrainte d'unicité existe bien en base | `test_unique_constraint_is_what_enforces_it` *(PostgreSQL)* | ✅ |
+| L'état survit à un redémarrage | `test_state_survives_a_restart` *(PostgreSQL)* | ✅ |
+| 8 clics simultanés → 1 seule opposition | `test_concurrent_unsubscribes_do_not_duplicate_the_suppression` *(PostgreSQL)* | ✅ |
+
+Les quatre derniers exigent un vrai PostgreSQL — SQLite sérialise les écrivains
+et ne peut pas démontrer la course. Ils s'ignorent automatiquement sans lui :
+
+```sh
+GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
+    pytest tests/test_concurrency_pg.py -v -s
+```
+
+## Simulé et réel
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Une répétition porte un statut distinct | `test_mock_provider_marks_the_event_simulated` | ✅ |
+| Un envoi réel est marqué réel | `test_real_provider_marks_the_event_real` | ✅ |
+| Une répétition ne bloque pas l'envoi réel | `test_a_rehearsal_does_not_consume_the_real_idempotency_key` | ✅ |
+| Les répétitions ne comptent pas comme contacts | `test_simulated_sends_are_never_counted_as_contacted` | ✅ |
+| Réservé et incertain ne comptent pas non plus | `test_reserved_and_uncertain_sends_are_not_counted_either` | ✅ |
+
 ## Modèle de langage
 
 | Contrôle | Preuve | État |

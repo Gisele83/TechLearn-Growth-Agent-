@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from growth_agent.models.enums import SuppressionReason, SuppressionScope
@@ -123,13 +124,7 @@ def add_suppression(
     if scope == SuppressionScope.GLOBAL:
         product_id = None
 
-    existing = session.execute(
-        select(SuppressionEntry).where(
-            SuppressionEntry.normalized_value == normalized,
-            SuppressionEntry.scope == scope,
-            SuppressionEntry.product_id == product_id,
-        )
-    ).scalar_one_or_none()
+    existing = _find_entry(session, normalized, scope, product_id)
     if existing is not None:
         return existing
 
@@ -143,9 +138,35 @@ def add_suppression(
         note=note,
         effective_from=moment,
     )
-    session.add(entry)
-    session.flush()
+    # La lecture ci-dessus ne suffit pas : deux clics simultanés sur un même
+    # lien de désinscription la franchissent ensemble. Le point de reprise
+    # permet de rattraper le perdant sans perdre la transaction en cours —
+    # il relit, et renvoie l'opposition que l'autre vient de créer.
+    try:
+        with session.begin_nested():
+            session.add(entry)
+            session.flush()
+    except IntegrityError:
+        existing = _find_entry(session, normalized, scope, product_id)
+        if existing is None:  # pragma: no cover - contrainte violée pour une autre raison
+            raise
+        return existing
     return entry
+
+
+def _find_entry(
+    session: Session, normalized: str, scope: str, product_id: uuid.UUID | None
+) -> SuppressionEntry | None:
+    statement = select(SuppressionEntry).where(
+        SuppressionEntry.normalized_value == normalized,
+        SuppressionEntry.scope == scope,
+    )
+    statement = statement.where(
+        SuppressionEntry.product_id.is_(None)
+        if product_id is None
+        else SuppressionEntry.product_id == product_id
+    )
+    return session.execute(statement.limit(1)).scalar_one_or_none()
 
 
 def list_suppressions(

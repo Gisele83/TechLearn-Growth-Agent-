@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -138,6 +139,9 @@ class OutreachEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (
         Index("ix_event_product_type_time", "product_id", "event_type", "occurred_at"),
         Index("ix_event_prospect", "prospect_id", "occurred_at"),
+        # Les indicateurs ne comptent que le réel : l'index porte donc sur le
+        # couple qui sert au filtrage.
+        Index("ix_event_real", "product_id", "is_simulated", "delivery_state"),
         UniqueConstraint("idempotency_key", name="uq_event_idempotency"),
     )
 
@@ -161,6 +165,17 @@ class OutreachEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payload: Mapped[dict] = mapped_column(JSONDict, default=dict, nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    #: Vrai lorsqu'aucun message n'a quitté la machine. Une colonne, et non un
+    #: champ de la charge utile : les indicateurs doivent pouvoir filtrer
+    #: dessus, et une répétition ne doit jamais être comptée comme un envoi.
+    is_simulated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    #: Renseigné pour les événements d'envoi : reserved, sent, failed, uncertain.
+    delivery_state: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    #: Identifiant rendu par le fournisseur, pour rapprocher un incident.
+    provider_message_id: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
 
 class SuppressionEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Opposition à la prospection.
@@ -176,6 +191,18 @@ class SuppressionEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint(
             "normalized_value", "scope", "product_id", name="uq_suppression_value_scope"
         ),
+        # La contrainte ci-dessus ne couvre PAS la portée globale : son
+        # `product_id` vaut NULL, et deux NULL ne sont jamais égaux en SQL.
+        # Huit clics simultanés sur un même lien de désinscription créaient
+        # donc huit oppositions identiques. Cet index partiel ferme le trou.
+        Index(
+            "uq_suppression_global",
+            "normalized_value",
+            "scope",
+            unique=True,
+            postgresql_where=text("product_id IS NULL"),
+            sqlite_where=text("product_id IS NULL"),
+        ),
         Index("ix_suppression_lookup", "normalized_value", "scope"),
     )
 
@@ -189,3 +216,59 @@ class SuppressionEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     source: Mapped[str] = mapped_column(String(128), default="manual", nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     effective_from: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+
+
+class UnsubscribeToken(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Jeton de désinscription, porté par le lien de chaque message.
+
+    Trois choix de conception, chacun corrigeant un défaut de la version
+    précédente où le « jeton » était un condensat du contenu :
+
+    * **Aléatoire.** 256 bits tirés de `secrets`. L'ancien condensat se
+      reconstituait à partir de l'adresse, de l'objet et du corps — tous trois
+      devinables à partir des gabarits.
+    * **Stocké haché.** Seule l'empreinte SHA-256 est en base. Une copie de la
+      base ne permet pas de forger un lien de désinscription valide, ni de
+      désinscrire quelqu'un à sa place.
+    * **Révocable et résoluble.** Le jeton est rattaché au prospect : on sait
+      qui se désinscrit, et un lien diffusé peut être invalidé.
+
+    Le jeton survit à l'anonymisation du prospect : la désinscription doit
+    rester possible même après la purge des coordonnées.
+    """
+
+    __tablename__ = "unsubscribe_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_unsubscribe_token_hash"),
+        Index("ix_unsubscribe_prospect", "prospect_id"),
+    )
+
+    #: SHA-256 du jeton en clair, en hexadécimal. Le jeton lui-même n'est
+    #: jamais stocké : il n'existe que dans le message envoyé.
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    prospect_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("prospect_candidates.id", ondelete="SET NULL"), nullable=True
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("products.id", ondelete="RESTRICT"), nullable=False
+    )
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True
+    )
+    draft_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("message_drafts.id", ondelete="SET NULL"), nullable=True
+    )
+
+    #: Adresse visée, conservée pour pouvoir inscrire l'opposition même si le
+    #: prospect a été anonymisé entre l'envoi et le clic.
+    email: Mapped[str] = mapped_column(String(256), nullable=False)
+
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+    @property
+    def is_usable(self) -> bool:
+        """Un jeton déjà utilisé reste utilisable : recliquer doit confirmer,
+        pas échouer. Seule une révocation explicite le ferme."""
+        return self.revoked_at is None

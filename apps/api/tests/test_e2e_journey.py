@@ -118,10 +118,21 @@ def test_full_journey_from_discovery_to_pilot(journey):
     assert reply["opted_out"] is False
 
     # 8. KPI recalculés --------------------------------------------------------
+    # Le parcours s'est déroulé en simulation de bout en bout. Par défaut, les
+    # KPI ne comptent donc personne comme contacté : c'est exactement ce qu'on
+    # veut lire, et c'est annoncé dans les notes plutôt que laissé deviner.
     kpis = client.get("/api/v1/kpis?product_code=educore", headers=journey["lecteur"]).json()[0]
-    assert kpis["funnel"]["contacted"] == 1
-    assert kpis["funnel"]["replied"] == 1
-    assert kpis["reply_rate"] == 1.0
+    assert kpis["funnel"]["contacted"] == 0
+    assert kpis["simulated_total"] == 1
+    assert any("simulé" in note for note in kpis["notes"])
+
+    # Les mêmes chiffres, répétitions comprises, sur demande explicite.
+    with_rehearsals = client.get(
+        "/api/v1/kpis?product_code=educore&include_simulated=true", headers=journey["lecteur"]
+    ).json()[0]
+    assert with_rehearsals["funnel"]["contacted"] == 1
+    assert with_rehearsals["funnel"]["replied"] == 1
+    assert with_rehearsals["reply_rate"] == 1.0
 
     # 9. Suivi de pilote (lecture seule, simulée) ------------------------------
     sync = client.post("/api/v1/pilots/educore/sync", headers=com).json()
@@ -140,7 +151,9 @@ def test_full_journey_from_discovery_to_pilot(journey):
         "outreach_composer.drafted",
         "approval.requested",
         "approval.approved",
-        "outreach.sent",
+        # Le parcours est simulé : l'audit le dit, au lieu de laisser croire
+        # qu'un message a été expédié.
+        "outreach.sent_simulated",
         "outreach.send_blocked",
     ):
         assert expected in actions, f"action absente du journal : {expected}"

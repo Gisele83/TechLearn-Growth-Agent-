@@ -23,13 +23,28 @@ n'oublie pas.
   **sans passer par le modèle** — trop important pour dépendre d'une inférence.
 - Une adresse absente ou malformée est traitée comme bloquante, pas comme
   neutre.
+- Chaque message porte un **lien de désinscription réellement fonctionnel** :
+  un jeton de 256 bits, stocké haché, utilisable sans compte, en `POST`
+  (RFC 8058, le bouton natif de Gmail et d'Outlook) comme en `GET` (le clic
+  humain). Le lien est refusé à l'envoi si `GA_PUBLIC_BASE_URL` est vide : un
+  message commercial dont le lien pointe vers `localhost` est un message qu'on
+  ne peut pas quitter.
+- Le jeton est révocable, et sa base de données ne permet pas de le
+  reconstituer — seulement de le reconnaître.
+- Huit clics simultanés ne créent qu'une opposition : un index unique partiel
+  couvre le cas de la portée globale, que la contrainte d'origine laissait
+  passer (`product_id` y vaut `NULL`, et deux `NULL` ne sont jamais égaux).
 
-**Tests.** `test_suppression.py` (8 tests), `test_outreach_send.py`
-(`test_suppression_is_checked_before_approval`), `test_e2e_journey.py`
-(`test_opt_out_during_the_journey_stops_everything`).
+**Tests.** `test_suppression.py` (8 tests), `test_unsubscribe.py` (16 tests),
+`test_outreach_send.py` (`test_suppression_is_checked_before_approval`),
+`test_e2e_journey.py` (`test_opt_out_during_the_journey_stops_everything`),
+`test_concurrency_pg.py`
+(`test_concurrent_unsubscribes_do_not_duplicate_the_suppression`).
 
 **Risque résiduel.** Une opposition exprimée par téléphone ou en personne ne
-remonte pas automatiquement. Le retrait d'une opposition est réservé aux
+remonte pas automatiquement. La route publique n'est pas encore limitée en
+débit : un jeton inconnu ne coûte qu'une lecture indexée et ne révèle rien,
+mais rien n'empêche de la marteler. Le retrait d'une opposition est réservé aux
 administrateurs et journalisé, mais reste possible.
 
 ### M2 — Un message non validé part

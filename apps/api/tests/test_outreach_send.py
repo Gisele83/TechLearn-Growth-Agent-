@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from doubles import ScriptedProvider, sending_settings
 from growth_agent.config import Settings
 from growth_agent.models.enums import (
     ApprovalSubject,
@@ -127,7 +128,9 @@ def test_approved_draft_is_sent_but_simulated(
     assert outcome.sent is True
     assert outcome.simulated is True, "sans autorisation d'envoi réel, l'envoi doit être simulé"
     assert len(email.outbox) == 1
-    assert draft.status == DraftStatus.SENT
+    # Statut distinct de SENT : rien n'est parti, et le tableau de bord ne
+    # doit pas laisser croire le contraire.
+    assert draft.status == DraftStatus.SENT_SIMULATED
     assert draft.sent_at is not None
 
 
@@ -202,9 +205,14 @@ def test_identical_content_to_same_contact_is_deduplicated(
     assert len(email.outbox) == 1
 
 
-def test_contact_frequency_cap_is_enforced(session, product_educore, make_prospect, email):
-    """Au-delà du plafond mensuel par contact, l'envoi est refusé."""
-    capped = Settings(email_max_per_contact_per_30_days=1)
+def test_contact_frequency_cap_is_enforced(session, product_educore, make_prospect):
+    """Au-delà du plafond mensuel par contact, l'envoi est refusé.
+
+    Le fournisseur n'est pas le mock : seuls les envois réels consomment le
+    quota, et une répétition ne doit jamais fermer la porte à un vrai message.
+    """
+    capped = sending_settings(email_max_per_contact_per_30_days=1)
+    email = ScriptedProvider()
     prospect = make_prospect(product=product_educore)
 
     first = _make_draft(session, product_educore, prospect, subject="Premier")
@@ -233,7 +241,7 @@ def test_contact_frequency_cap_is_enforced(session, product_educore, make_prospe
     assert outcome.reason_code == "frequency_contact"
 
 
-def test_frequency_block_is_transient_not_terminal(session, product_educore, make_prospect, email):
+def test_frequency_block_is_transient_not_terminal(session, product_educore, make_prospect):
     """Un plafond atteint n'est pas une faute du message : le brouillon n'est
     pas condamné et repart une fois la fenêtre écoulée.
 
@@ -241,7 +249,8 @@ def test_frequency_block_is_transient_not_terminal(session, product_educore, mak
     d'origine a expiré, ce qui est le comportement voulu — on ne réutilise pas
     une validation vieille d'un mois.
     """
-    capped = Settings(email_max_per_contact_per_30_days=1)
+    capped = sending_settings(email_max_per_contact_per_30_days=1)
+    email = ScriptedProvider()
     prospect = make_prospect(product=product_educore)
     first = _make_draft(session, product_educore, prospect, subject="Premier")
     _approve(session, first)
@@ -288,15 +297,26 @@ def test_frequency_block_is_transient_not_terminal(session, product_educore, mak
     assert outcome.sent is True
 
 
-def test_campaign_daily_cap_is_enforced(
-    session, product_educore, campaign_educore, make_prospect, email
-):
-    capped = Settings(email_max_per_campaign_per_day=1, email_max_per_contact_per_30_days=10)
+def test_campaign_daily_cap_is_enforced(session, product_educore, campaign_educore, make_prospect):
+    capped = sending_settings(
+        email_max_per_campaign_per_day=1, email_max_per_contact_per_30_days=10
+    )
+    email = ScriptedProvider()
+    # Deux destinataires distincts : la clé d'idempotence porte sur l'adresse,
+    # pas sur l'organisation. Deux fiches partageant une adresse seraient
+    # écartées par l'anti-doublon avant d'atteindre le plafond — ce qui est
+    # voulu, mais ce n'est pas ce que ce test mesure.
     first_prospect = make_prospect(
-        product=product_educore, domain="un.example.org", campaign=campaign_educore
+        product=product_educore,
+        domain="un.example.org",
+        contact_email="un@exemple.example.org",
+        campaign=campaign_educore,
     )
     second_prospect = make_prospect(
-        product=product_educore, domain="deux.example.org", campaign=campaign_educore
+        product=product_educore,
+        domain="deux.example.org",
+        contact_email="deux@exemple.example.org",
+        campaign=campaign_educore,
     )
 
     first = _make_draft(session, product_educore, first_prospect)

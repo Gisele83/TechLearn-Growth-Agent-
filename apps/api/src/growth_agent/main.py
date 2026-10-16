@@ -11,7 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from growth_agent import __version__
 from growth_agent.api.errors import register_error_handlers
 from growth_agent.api.middleware import RateLimitMiddleware, RequestIdMiddleware
-from growth_agent.api.routers import analytics, auth, catalog, outreach, prospects, system
+from growth_agent.api.routers import (
+    analytics,
+    auth,
+    catalog,
+    outreach,
+    prospects,
+    public,
+    system,
+)
 from growth_agent.config import Environment, get_settings
 from growth_agent.logging_config import configure_logging
 
@@ -88,6 +96,8 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(system.router)
+    # Publique, sans authentification : voir api/routers/public.py.
+    app.include_router(public.router)
     app.include_router(system.admin_router, prefix="/api/v1")
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(catalog.router, prefix="/api/v1")

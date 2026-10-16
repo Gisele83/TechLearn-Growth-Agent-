@@ -41,6 +41,13 @@ def kpis(
     session: SessionDep,
     product_code: str | None = None,
     window_days: int = Query(default=90, ge=1, le=730),
+    include_simulated: bool = Query(
+        default=False,
+        description=(
+            "Inclure les envois simulés dans le funnel. Par défaut non : une "
+            "répétition n'a atteint personne et ne doit pas gonfler les chiffres."
+        ),
+    ),
     _: CurrentUser = Depends(require(CAN_READ)),
 ):
     """KPI recalculés à la demande depuis les événements."""
@@ -53,11 +60,15 @@ def kpis(
                     product_id=product.id,
                     product_code=product.code,
                     window_days=window_days,
+                    include_simulated=include_simulated,
                 ).as_dict()
             )
         ]
     return [
-        ProductKPIOut(**k.as_dict()) for k in compute_all_kpis(session, window_days=window_days)
+        ProductKPIOut(**k.as_dict())
+        for k in compute_all_kpis(
+            session, window_days=window_days, include_simulated=include_simulated
+        )
     ]
 
 

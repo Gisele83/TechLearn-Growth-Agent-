@@ -34,6 +34,10 @@ class ProductKPIOut(BaseModel):
     qualified_organizations: int = 0
     verified_organizations: int = 0
     unknown_organizations: int = 0
+    #: Envois simulés, comptés à part et jamais ajoutés à `funnel.contacted`.
+    simulated_total: int = 0
+    #: Envois d'issue inconnue, en attente d'arbitrage humain.
+    uncertain_total: int = 0
     notes: list[str] = Field(default_factory=list)
 
 

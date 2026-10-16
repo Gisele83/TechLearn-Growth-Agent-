@@ -94,6 +94,12 @@ class Settings(BaseSettings):
     educore_api_token: str = ""
     educore_webhook_secret: str = ""
 
+    # --- Exposition publique ---------------------------------------------------
+    # Racine publique de l'application, utilisée pour construire les liens de
+    # désinscription. Sans elle, un message annoncerait un droit d'opposition
+    # qu'il ne permet pas d'exercer : l'envoi réel est donc refusé.
+    public_base_url: str = ""
+
     # --- Identité de l'expéditeur --------------------------------------------
     # Un message de prospection est signé par une personne, pas par un outil.
     # Sans nom configuré, la rédaction est refusée : un message anonyme est le
@@ -192,9 +198,17 @@ class Settings(BaseSettings):
         return False
 
     def can_send_email(self) -> bool:
-        """L'envoi réel requiert le flag ET un fournisseur non-mock ET un expéditeur."""
+        """Conditions cumulatives de l'envoi réel.
+
+        `public_base_url` en fait partie : sans adresse publique, le lien de
+        désinscription du message ne mènerait nulle part. Mieux vaut ne pas
+        envoyer que promettre un droit qu'on ne permet pas d'exercer.
+        """
         return (
-            self.email_sending_enabled and self.email_provider != "mock" and bool(self.email_from)
+            self.email_sending_enabled
+            and self.email_provider != "mock"
+            and bool(self.email_from)
+            and bool(self.public_base_url)
         )
 
     def configuration_warnings(self) -> list[str]:
@@ -209,6 +223,11 @@ class Settings(BaseSettings):
         if self.email_sending_enabled and self.email_provider == "mock":
             warnings.append(
                 "GA_EMAIL_SENDING_ENABLED=true mais le fournisseur est 'mock' : aucun envoi réel."
+            )
+        if self.email_sending_enabled and not self.public_base_url:
+            warnings.append(
+                "GA_PUBLIC_BASE_URL absente : les liens de désinscription ne "
+                "mèneraient nulle part, l'envoi réel reste donc bloqué."
             )
         for product in ("maintrix", "educore"):
             enabled = getattr(self, f"{product}_enabled")

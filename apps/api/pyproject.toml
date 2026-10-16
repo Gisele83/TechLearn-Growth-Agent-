@@ -35,6 +35,14 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 filterwarnings = ["ignore::DeprecationWarning"]
+# Les tests marqués `integration` parlent à un service extérieur réel. Ils
+# sont exclus par défaut : une suite qui part sur le réseau n'est ni
+# reproductible, ni gratuite, ni exécutable hors ligne. On les lance
+# explicitement, avec `-m integration`, contre un bac à sable.
+markers = [
+    "integration: parle à un service extérieur réel (exclu par défaut)",
+]
+addopts = "-m 'not integration'"
 
 [tool.ruff]
 line-length = 100

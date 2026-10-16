@@ -24,6 +24,7 @@ from growth_agent.models.ops import User
 from growth_agent.schemas.auth import CurrentUser
 from growth_agent.security.rbac import PermissionDenied, has_role
 from growth_agent.security.tokens import TokenError, decode_access_token
+from growth_agent.services.crm_mapping import DatabaseIdempotencyStore
 
 
 def db_session() -> Iterator[Session]:
@@ -80,8 +81,14 @@ def require(role: str):
     return _dependency
 
 
-def crm_adapter(settings: SettingsDep) -> CRMAdapter:
-    return get_crm_adapter(settings)
+def crm_adapter(settings: SettingsDep, session: SessionDep) -> CRMAdapter:
+    """Adaptateur CRM adossé à la transaction en cours.
+
+    La mémoire d'idempotence vit dans cette transaction : si la requête
+    échoue, les correspondances écrites disparaissent avec elle, et rien ne
+    prétend qu'un objet a été créé alors que le reste a été annulé.
+    """
+    return get_crm_adapter(settings).with_idempotency_store(DatabaseIdempotencyStore(session))
 
 
 def llm_provider(settings: SettingsDep) -> LLMProvider:

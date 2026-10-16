@@ -379,6 +379,30 @@ def test_coordinator_creates_an_idempotent_task(ctx, product_educore, make_prosp
     assert crm.task_count == 1
 
 
+def test_coordinator_handles_several_tasks_for_one_prospect(
+    ctx, session, product_educore, make_prospect, crm
+):
+    """Un prospect reçoit une relance, puis une démonstration. La table de
+    correspondance l'interdisait : sa contrainte d'unicité portait sur
+    (fournisseur, type, objet local), et la deuxième tâche plantait."""
+    from growth_agent.models.prospect import CRMMapping
+
+    prospect = make_prospect(product=product_educore)
+    agent = SalesCoordinatorAgent(crm)
+    agent.execute(ctx, prospect=prospect, kind="follow_up")
+    agent.execute(ctx, prospect=prospect, kind="demo")
+    session.commit()
+
+    assert crm.task_count == 2
+    mappings = (
+        session.query(CRMMapping)
+        .filter(CRMMapping.object_type == "task", CRMMapping.local_id == prospect.id)
+        .all()
+    )
+    assert len(mappings) == 2
+    assert len({m.idempotency_key for m in mappings}) == 2
+
+
 # --- Proposal Assistant ------------------------------------------------------
 
 

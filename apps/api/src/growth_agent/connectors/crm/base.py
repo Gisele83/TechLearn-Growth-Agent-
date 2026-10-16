@@ -13,9 +13,72 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from growth_agent.connectors.base import Page
+
+
+class CRMIdempotencyStore(Protocol):
+    """Mémoire locale des objets déjà créés dans le CRM.
+
+    Elle existe parce qu'on ne peut pas confier l'idempotence au CRM lui-même.
+    HubSpot n'offre pas d'en-tête d'idempotence, et son index de recherche est
+    à cohérence différée : un objet créé n'y apparaît qu'après un délai. Une
+    reprise dans cette fenêtre ne trouve rien et crée un doublon — exactement
+    ce que le mécanisme devait empêcher.
+
+    Growth Agent tient donc la correspondance lui-même, écrite dans la même
+    transaction que le reste du travail. La recherche distante ne sert plus que
+    de filet, quand la mémoire locale est vide.
+    """
+
+    def lookup(self, *, provider: str, object_type: str, idempotency_key: str) -> str | None:
+        """Identifiant distant déjà associé à cette clé, s'il est connu."""
+        ...
+
+    def remember(
+        self,
+        *,
+        provider: str,
+        object_type: str,
+        idempotency_key: str,
+        remote_id: str,
+    ) -> None:
+        """Associe durablement la clé à l'identifiant rendu par le CRM."""
+        ...
+
+
+class NullIdempotencyStore:
+    """Absence de mémoire : chaque appel repart de la recherche distante.
+
+    C'est le comportement par défaut, et il est volontairement explicite. Un
+    adaptateur sans mémoire locale est exposé au doublon décrit ci-dessus ;
+    mieux vaut que ce soit un choix lisible qu'un oubli.
+    """
+
+    def lookup(self, *, provider: str, object_type: str, idempotency_key: str) -> str | None:
+        return None
+
+    def remember(
+        self, *, provider: str, object_type: str, idempotency_key: str, remote_id: str
+    ) -> None:
+        return None
+
+
+class InMemoryIdempotencyStore:
+    """Mémoire de processus. Utile aux tests et au mock ; perdue au
+    redémarrage, donc jamais suffisante en exploitation."""
+
+    def __init__(self) -> None:
+        self._entries: dict[tuple[str, str, str], str] = {}
+
+    def lookup(self, *, provider: str, object_type: str, idempotency_key: str) -> str | None:
+        return self._entries.get((provider, object_type, idempotency_key))
+
+    def remember(
+        self, *, provider: str, object_type: str, idempotency_key: str, remote_id: str
+    ) -> None:
+        self._entries.setdefault((provider, object_type, idempotency_key), remote_id)
 
 
 @dataclass(slots=True)
@@ -102,6 +165,17 @@ class CRMAdapter(ABC):
 
     @abstractmethod
     def create_note(self, note: CRMNote, *, idempotency_key: str) -> CRMNote: ...
+
+    # --- Mémoire d'idempotence ----------------------------------------------
+    def with_idempotency_store(self, store: CRMIdempotencyStore) -> CRMAdapter:
+        """Adaptateur équivalent, adossé à cette mémoire.
+
+        Renvoie une vue plutôt que de muter l'adaptateur : celui-ci est partagé
+        entre requêtes, alors que la mémoire est adossée à une transaction. Un
+        attribut mutable partagé ferait écrire une requête dans la transaction
+        d'une autre.
+        """
+        return self
 
     # --- Supervision ---------------------------------------------------------
     @abstractmethod

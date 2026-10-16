@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -162,17 +163,39 @@ class CRMMapping(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     Permet de retrouver l'objet distant sans dupliquer ses champs : le CRM reste
     la source de vérité, Growth Agent ne garde que le lien et la date de
     dernière synchronisation.
+
+    C'est aussi la mémoire d'idempotence des écritures CRM. HubSpot n'offre pas
+    d'en-tête d'idempotence et son index de recherche est à cohérence différée :
+    s'y fier pour savoir ce qu'on a déjà créé produit des doublons. La clé est
+    donc écrite ici, dans la transaction locale, où elle est immédiatement
+    lisible.
     """
 
     __tablename__ = "crm_mappings"
     __table_args__ = (
-        UniqueConstraint("crm_provider", "object_type", "local_id", name="uq_crm_mapping_local"),
         UniqueConstraint("crm_provider", "object_type", "remote_id", name="uq_crm_mapping_remote"),
+        # C'est cet index qui rend l'idempotence réelle : deux écritures
+        # portant la même clé ne peuvent pas produire deux lignes. Partiel,
+        # parce que les correspondances importées d'un CRM existant n'ont pas
+        # de clé — elles n'ont pas été créées par nous.
+        Index(
+            "uq_crm_mapping_idempotency",
+            "crm_provider",
+            "object_type",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key <> ''"),
+            sqlite_where=text("idempotency_key <> ''"),
+        ),
+        Index("ix_crm_mapping_local", "crm_provider", "object_type", "local_id"),
     )
 
     crm_provider: Mapped[str] = mapped_column(String(32), nullable=False)
     object_type: Mapped[str] = mapped_column(String(32), nullable=False)
     local_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
     remote_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    #: Clé d'idempotence de l'écriture qui a créé l'objet distant. Vide pour une
+    #: correspondance constatée plutôt que créée.
+    idempotency_key: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     sync_digest: Mapped[str] = mapped_column(String(64), default="", nullable=False)

@@ -20,9 +20,10 @@ from growth_agent.agents.base import AgentContext, AgentResult, BaseAgent
 from growth_agent.connectors.crm.base import CRMAdapter, CRMTask
 from growth_agent.models.enums import AgentName, OutreachEventType, ProspectStage
 from growth_agent.models.outreach import OutreachEvent
-from growth_agent.models.prospect import CRMMapping, ProspectCandidate
+from growth_agent.models.prospect import ProspectCandidate
 from growth_agent.security.redaction import digest
 from growth_agent.services.audit import record_audit
+from growth_agent.services.crm_mapping import remember_mapping
 from growth_agent.services.outreach import record_outreach_event
 from growth_agent.services.suppression import check_suppression
 
@@ -123,6 +124,7 @@ class SalesCoordinatorAgent(BaseAgent[CoordinationOutcome]):
                 object_type="task",
                 local_id=prospect.id,
                 remote_id=task.remote_id,
+                idempotency_key=idempotency_key,
             )
 
         if kind == "demo":
@@ -172,24 +174,20 @@ def _store_mapping(
     object_type: str,
     local_id: uuid.UUID,
     remote_id: str,
+    idempotency_key: str = "",
 ) -> None:
-    existing = context.session.execute(
-        select(CRMMapping).where(
-            CRMMapping.crm_provider == provider,
-            CRMMapping.object_type == object_type,
-            CRMMapping.remote_id == remote_id,
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        existing.last_synced_at = context.moment
-        return
-    context.session.add(
-        CRMMapping(
-            crm_provider=provider,
-            object_type=object_type,
-            local_id=local_id,
-            remote_id=remote_id,
-            last_synced_at=context.moment,
-        )
+    """Enregistre la correspondance de la tâche créée.
+
+    Plusieurs tâches existent pour un même prospect — une relance, puis une
+    démonstration. La table ne les distingue que par la clé d'idempotence ;
+    c'est elle qui porte l'unicité, pas le couple (prospect, type d'objet).
+    """
+    remember_mapping(
+        context.session,
+        provider=provider,
+        object_type=object_type,
+        local_id=local_id,
+        remote_id=remote_id,
+        idempotency_key=idempotency_key,
+        now=context.moment,
     )
-    context.session.flush()

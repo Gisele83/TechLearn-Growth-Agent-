@@ -401,3 +401,62 @@ def test_concurrent_unsubscribes_do_not_duplicate_the_suppression(
     # Au moins un clic aboutit, et la base ne contient qu'une opposition.
     assert any(outcomes)
     assert entries == 1
+
+
+def test_concurrent_crm_writes_create_one_mapping(pg_factory, scenario):
+    """Deux travailleurs synchronisent le même prospect au même instant.
+
+    La mémoire d'idempotence CRM est ce qui empêche un doublon chez le client ;
+    si elle-même se dédouble, elle ne garantit plus rien. Comme pour l'envoi,
+    c'est une contrainte d'unicité qui tranche, pas une lecture préalable.
+    """
+    from growth_agent.models.prospect import CRMMapping
+    from growth_agent.services.crm_mapping import DatabaseIdempotencyStore
+
+    workers = 10
+    barrier = threading.Barrier(workers)
+    resolved: list[str | None] = []
+    lock = threading.Lock()
+
+    def worker(index: int) -> None:
+        session = pg_factory()
+        try:
+            store = DatabaseIdempotencyStore(session, local_id=scenario["prospect_id"])
+            barrier.wait(timeout=30)
+            store.remember(
+                provider="hubspot",
+                object_type="company",
+                idempotency_key="societe-unique",
+                # Chaque travailleur croit avoir créé « son » objet : c'est
+                # le pire cas, celui où les identifiants distants diffèrent.
+                remote_id=f"remote-{index}",
+            )
+            session.commit()
+            kept = store.lookup(
+                provider="hubspot", object_type="company", idempotency_key="societe-unique"
+            )
+        except Exception:  # noqa: BLE001
+            session.rollback()
+            kept = None
+        finally:
+            session.close()
+        with lock:
+            resolved.append(kept)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+
+    session = pg_factory()
+    try:
+        rows = (
+            session.query(CRMMapping).filter(CRMMapping.idempotency_key == "societe-unique").all()
+        )
+    finally:
+        session.close()
+
+    assert len(rows) == 1, f"{len(rows)} correspondances pour une seule clé"
+    # Tous les travailleurs voient le même identifiant : celui qui a gagné.
+    assert {value for value in resolved if value} == {rows[0].remote_id}

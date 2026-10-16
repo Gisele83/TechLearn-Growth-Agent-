@@ -53,8 +53,15 @@ class Settings(BaseSettings):
     crm_provider: str = "mock"
     crm_base_url: str = "https://api.hubapi.com"
     crm_api_token: str = ""
+    #: Débit maximal vers le CRM, appliqué par un limiteur à jetons dans
+    #: l'adaptateur. Les endpoints de recherche de HubSpot ont un quota plus
+    #: bas que le quota général : rester prudent.
     crm_rate_limit_per_second: float = 4.0
     crm_max_retries: int = 5
+    #: Relire la clé d'idempotence côté CRM quand la mémoire locale ne la
+    #: connaît pas. Coûte un appel par première écriture, et protège d'un
+    #: doublon si la base locale a été restaurée ou perdue.
+    crm_search_fallback: bool = True
 
     # --- LLM -----------------------------------------------------------------
     llm_provider: str = "mock"

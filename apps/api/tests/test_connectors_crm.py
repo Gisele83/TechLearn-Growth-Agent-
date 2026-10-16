@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from growth_agent.connectors.base import ConnectorError, RateLimitError
+from growth_agent.connectors.base import ConnectorError, RateLimitError, TokenBucket
 from growth_agent.connectors.crm.base import CRMCompany, CRMContact
 from growth_agent.connectors.crm.hubspot import IDEMPOTENCY_PROPERTY, HubSpotCRMAdapter
 from growth_agent.connectors.crm.mock import MockCRMAdapter
@@ -199,3 +199,49 @@ def test_circuit_breaker_opens_after_repeated_failures():
 
 def _hs_company(remote_id: str, domain: str) -> dict:
     return {"id": remote_id, "properties": {"name": f"Société {remote_id}", "domain": domain}}
+
+
+# --- Limiteur de débit -----------------------------------------------------
+
+
+def _bucket(rate: float, **kwargs) -> tuple[TokenBucket, list[float]]:
+    """Seau piloté par une horloge figée : on mesure la décision du limiteur,
+    pas la patience de la machine qui exécute les tests."""
+    waits: list[float] = []
+    bucket = TokenBucket(rate, monotonic=lambda: 0.0, sleep=waits.append, **kwargs)
+    return bucket, waits
+
+
+def test_a_burst_within_the_capacity_passes_without_waiting():
+    bucket, waits = _bucket(4.0)
+    for _ in range(4):
+        assert bucket.acquire() == 0.0
+    assert waits == []
+
+
+def test_beyond_the_capacity_each_call_waits_its_turn():
+    bucket, _ = _bucket(2.0)
+    bucket.acquire()
+    bucket.acquire()
+    # 2 jetons par seconde : chaque appel suivant attend une demi-seconde, et
+    # cette attente ne doit pas enfler — un limiteur dont le retard s'accumule
+    # finit par bloquer le connecteur plutôt que de le réguler.
+    assert bucket.acquire() == pytest.approx(0.5)
+    assert bucket.acquire() == pytest.approx(0.5)
+    assert bucket.acquire() == pytest.approx(0.5)
+
+
+def test_the_bucket_refills_as_time_passes():
+    clock = {"t": 0.0}
+    bucket = TokenBucket(2.0, monotonic=lambda: clock["t"], sleep=lambda _s: None, capacity=2.0)
+    bucket.acquire()
+    bucket.acquire()
+    clock["t"] = 10.0
+    assert bucket.acquire() == 0.0
+
+
+def test_a_rate_of_zero_is_refused():
+    """Un débit nul n'est pas une limite, c'est un blocage : mieux vaut le
+    refuser à la construction que le découvrir en production."""
+    with pytest.raises(ValueError):
+        TokenBucket(0)

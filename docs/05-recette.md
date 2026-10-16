@@ -57,7 +57,28 @@
 | Pas de réessai sur une erreur 4xx | `test_hubspot_does_not_retry_a_client_error` | ✅ |
 | Idempotence des écritures | `test_idempotent_upsert_creates_a_single_company` | ✅ |
 | Coupe-circuit sur service en panne | `test_circuit_breaker_opens_after_repeated_failures` | ✅ |
-| Validé contre un compte HubSpot réel | — | ❌ **Non fait** (risque R9) |
+| Un rejeu immédiat ne crée pas de doublon | `test_local_memory_prevents_the_duplicate` | ✅ |
+| La mémoire survit à un redémarrage | `test_memory_survives_a_restart` | ✅ |
+| Mémoire perdue : le filet distant rattrape | `test_a_lost_local_memory_falls_back_to_the_remote_search` | ✅ |
+| Une synchronisation répétée coûte un appel, pas deux | `test_a_repeated_sync_costs_one_call_instead_of_two` | ✅ |
+| Une note déjà écrite n'est pas réécrite | `test_a_note_already_written_is_not_rewritten` | ✅ |
+| Affaire rattachée à son entreprise et à son contact | `test_a_deal_is_attached_to_its_company_and_its_contact` | ✅ |
+| Tâche rattachée à son contact | `test_a_task_is_attached_to_its_contact` | ✅ |
+| Aucune association vers un objet absent | `test_nothing_is_associated_to_a_missing_counterpart` | ✅ |
+| Le plafond de débit configuré est appliqué | `test_the_configured_rate_limit_is_actually_applied` | ✅ |
+| Les réessais consomment aussi le quota | `test_retries_also_consume_the_quota` | ✅ |
+| L'attente du limiteur n'enfle pas | `test_beyond_the_capacity_each_call_waits_its_turn` | ✅ |
+| Plusieurs tâches pour un prospect | `test_coordinator_handles_several_tasks_for_one_prospect` | ✅ |
+| 10 écritures concurrentes → 1 correspondance | `test_concurrent_crm_writes_create_one_mapping` *(PostgreSQL)* | ✅ |
+| Validé contre un compte HubSpot réel | `tests/test_crm_integration.py` — prêt, non exécuté | ❌ **Non fait** (risque R9) |
+
+Les tests d'intégration CRM sont écrits mais **exclus par défaut** : ils
+parlent à un portail réel. Ils se lancent contre un bac à sable, jamais
+contre un portail de production :
+
+```sh
+GA_CRM_SANDBOX_TOKEN="pat-…" pytest -m integration tests/test_crm_integration.py
+```
 
 ## Envoi
 

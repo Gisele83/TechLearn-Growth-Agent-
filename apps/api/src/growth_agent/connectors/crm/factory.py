@@ -23,6 +23,8 @@ def get_crm_adapter(settings: Settings | None = None) -> CRMAdapter:
             base_url=settings.crm_base_url,
             api_token=settings.crm_api_token,
             max_retries=settings.crm_max_retries,
+            rate_limit_per_second=settings.crm_rate_limit_per_second,
+            search_fallback=settings.crm_search_fallback,
         )
 
     # Le mock est partagé pour que l'état survive entre deux requêtes HTTP en

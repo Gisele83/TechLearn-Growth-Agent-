@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -388,6 +389,40 @@ def delete_suppression(
 
 
 # --- Réponses ----------------------------------------------------------------
+
+
+#: Trace laissée par un relevé de boîte sans réponse à reporter. Sans elle,
+#: « personne n'a écrit » et « personne n'a relevé » produisent exactement le
+#: même silence — et c'est le second cas qui laisse partir une relance vers
+#: quelqu'un qui s'était opposé.
+INBOX_RELAY_ACTION = "inbox.relayed"
+
+
+@router.post("/replies/relay-check", status_code=status.HTTP_201_CREATED)
+def record_inbox_relay(
+    session: SessionDep,
+    user: CurrentUser = Depends(require(CAN_OPERATE)),
+) -> dict[str, str]:
+    """Déclare que la boîte de réponse a été relevée, sans rien à reporter.
+
+    Chaque message promet « répondez STOP ». Cette promesse repose sur une
+    personne qui lit une boîte, et rien dans le système ne pouvait le
+    constater. Un relevé vide laisse désormais une trace, ce qui rend
+    l'engagement observable — et son interruption, visible.
+    """
+    moment = datetime.now(UTC)
+    record_audit(
+        session,
+        actor=user.email,
+        actor_role=user.role,
+        action=INBOX_RELAY_ACTION,
+        object_type="reply_inbox",
+        object_id=None,
+        metadata={"outcome": "aucune réponse à reporter"},
+        now=moment,
+    )
+    session.flush()
+    return {"status": "relevé enregistré", "at": moment.isoformat()}
 
 
 @router.post("/replies/analyze", response_model=ReplyAnalysisOut)

@@ -375,7 +375,9 @@ Les rebonds, eux, sont traités par SendGrid via le domaine de retour
 [ ] Authentification du sous-domaine vérifiée dans SendGrid
 [ ] Enregistrements du domaine principal inchangés — vérifié après coup
 [x] Boîte de réponse confirmée : contact@techlearn-saem.com existe et reçoit (16/10/2026)
-[ ] Personne nommée pour relever cette boîte chaque jour ouvré
+[x] Personne nommée pour relever cette boîte chaque jour ouvré : Merveille Nguetse (16/10/2026)
+[ ] Compte Growth Agent au rôle « commercial » créé pour cette personne
+[ ] Suppléance désignée pour ses absences
 [ ] GA_EMAIL_FROM basculé sur le sous-domaine
 [ ] Mode bac à sable SendGrid désactivé, en connaissance de cause
 [ ] Procès-verbal de mise en service signé

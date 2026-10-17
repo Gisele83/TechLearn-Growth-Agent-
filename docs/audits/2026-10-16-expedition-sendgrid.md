@@ -240,13 +240,21 @@ make secrets                         Aucun secret détecté
 le risque principal, et il n'est pas levé : il dépend de D2. Tant que
 l'envoi réel n'est pas activé, il ne se matérialise pas.
 
-**R21 — Le relevé des réponses est humain, et c'est le maillon faible.**
-`contact@techlearn-saem.com` reçoit, mais rien ne la relève
-automatiquement. Une opposition reportée trois jours après son arrivée laisse
-trois jours pendant lesquels une relance peut partir — les plafonds de
-fréquence limitent la casse, ils ne la suppriment pas. Il manque **une
-personne nommée** pour cette tâche quotidienne ; tant qu'elle ne l'est pas,
-le message promet plus que l'organisation ne tient.
+**R21 — Le relevé des réponses est humain, mais il n'est plus invisible.**
+`contact@techlearn-saem.com` est relevée chaque jour ouvré par **Merveille
+Nguetse** (désignée le 16/10/2026). Rien ne la relève automatiquement, et une
+opposition reportée trois jours après son arrivée laisse trois jours pendant
+lesquels une relance peut partir.
+
+Ce qui a changé : le système constate désormais le geste. Un relevé laisse
+une trace **même quand la boîte est vide** — sans quoi « personne n'a écrit »
+et « personne n'a relevé » produisent le même silence. L'alerte
+`BoiteDeReponseNonRelevee` se déclenche après quatre jours, seuil choisi pour
+ne pas sonner chaque week-end.
+
+Reste ouvert : **la suppléance**. Une personne unique est un point de panne,
+et la parade documentée (vider `GA_REPLY_TO_EMAIL` pendant une absence)
+suppose que quelqu'un y pense.
 
 **R22 — La détection d'opposition est une liste, pas une compréhension.** Une
 tournure inédite (« je préfère qu'on en reste là ») passerait au travers. La
@@ -266,10 +274,11 @@ il demande une clé.
 
 1. ~~La boîte `contact@techlearn-saem.com` existe-t-elle et reçoit-elle ?~~
    **Confirmé le 16/10/2026.** L'adresse est activée.
-2. **Qui relève cette boîte, chaque jour ouvré ?** C'est la question la plus
-   urgente : le message promet désormais « répondez STOP », et cette promesse
-   repose entièrement sur une personne. Sans nom, il vaut mieux revider
-   `GA_REPLY_TO_EMAIL`.
+2. ~~Qui relève cette boîte, chaque jour ouvré ?~~ **Merveille Nguetse,
+   désignée le 16/10/2026.** Deux suites concrètes : lui créer un compte
+   Growth Agent au rôle **commercial** (un compte lecteur ne permet ni de
+   reporter une réponse ni de déclarer un relevé), et désigner une
+   suppléance pour ses absences.
 3. Une clé SendGrid de test, pour exécuter l'intégration en bac à sable.
 4. La décision D2 sur `growth.techlearn-saem.com`.
 5. Le mode de réception à terme : webhook SendGrid Inbound Parse, IMAP, ou

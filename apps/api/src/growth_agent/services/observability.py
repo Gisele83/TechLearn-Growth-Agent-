@@ -34,7 +34,7 @@ from growth_agent import __version__
 from growth_agent.config import Settings
 from growth_agent.models.catalog import Product
 from growth_agent.models.enums import ApprovalDecision, DeliveryState, OutreachEventType
-from growth_agent.models.ops import PurgeRun
+from growth_agent.models.ops import AuditEvent, PurgeRun
 from growth_agent.models.outreach import ApprovalRequest, OutreachEvent, SuppressionEntry
 from growth_agent.retention.runner import (
     PURGE_BLOCKED,
@@ -46,6 +46,12 @@ from growth_agent.retention.runner import (
 #: Au-delà de ce délai, une réservation d'envoi encore à l'état « reserved »
 #: ne correspond plus à un envoi en cours mais à un processus mort.
 STALE_RESERVATION_MINUTES = 15
+
+#: Actions du journal d'audit qui attestent qu'une personne a relevé la boîte
+#: de réponse — soit en reportant une réponse, soit en déclarant qu'il n'y en
+#: avait aucune. Les deux comptent : c'est le geste qu'on surveille, pas son
+#: résultat.
+RELAY_ACTIONS = ("inbox.relayed", "conversation_analyst.classified")
 
 
 @dataclass(frozen=True)
@@ -165,6 +171,27 @@ ALERT_RULES: tuple[AlertRule, ...] = (
             "dans /api/v1/system/retention/runs et vérifier d'où vient le "
             "volume avant de relever le plafond. Ne jamais le relever pour "
             "faire passer une purge qu'on n'a pas expliquée."
+        ),
+    ),
+    AlertRule(
+        name="BoiteDeReponseNonRelevee",
+        metric="growth_agent_inbox_last_relay_age_seconds",
+        # 96 heures : un relevé le vendredi matin et le suivant le lundi
+        # matin laissent 72 heures tout à fait normales. Alerter à 72 ferait
+        # sonner chaque week-end, et une alerte qui sonne pour rien finit
+        # par ne plus être lue.
+        threshold=345600,
+        comparison="gt",
+        severity="critical",
+        summary="La boîte de réponse n'a pas été relevée depuis quatre jours.",
+        runbook=(
+            "Chaque message promet « répondez STOP ». Cette promesse repose "
+            "sur un relevé quotidien, et il s'est interrompu : une opposition "
+            "peut dormir dans la boîte pendant qu'une relance part. Relever "
+            "contact@techlearn-saem.com maintenant. Si personne ne peut s'en "
+            "charger durablement, vider GA_REPLY_TO_EMAIL — les messages "
+            "cesseront d'inviter à répondre et renverront au seul lien de "
+            "désinscription, qui fonctionne sans personne."
         ),
     ),
     AlertRule(
@@ -457,6 +484,26 @@ def collect(
             help_text="Purges arrêtées par un garde-fou sur 24 heures.",
         )
     )
+
+    # --- Relevé de la boîte de réponse ---------------------------------------
+    # Mesurée seulement quand les messages invitent à répondre : sans cette
+    # invitation, personne n'a rien promis et il n'y a rien à surveiller.
+    if settings.replies_are_monitored():
+        last_relay = session.execute(
+            select(func.max(AuditEvent.occurred_at)).where(AuditEvent.action.in_(RELAY_ACTIONS))
+        ).scalar_one_or_none()
+        samples.append(
+            Sample(
+                "growth_agent_inbox_last_relay_age_seconds",
+                float("inf")
+                if last_relay is None
+                else max(0.0, (moment - _aware(last_relay)).total_seconds()),
+                help_text=(
+                    "Temps écoulé depuis le dernier relevé de la boîte de réponse, "
+                    "qu'une réponse ait été reportée ou non."
+                ),
+            )
+        )
 
     # --- Sauvegarde ----------------------------------------------------------
     age = backup_age_seconds(settings, now=moment)

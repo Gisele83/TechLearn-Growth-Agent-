@@ -154,7 +154,14 @@ je ne vous recontacte pas »**.
 
 **Rien ne relève cette boîte automatiquement.** Aucune intégration entrante
 n'existe. La promesse n'est donc tenue que si quelqu'un lit. C'est une tâche,
-pas une fonctionnalité, et elle doit être attribuée à une personne nommée.
+pas une fonctionnalité.
+
+| | |
+|---|---|
+| **Responsable** | Merveille Nguetse |
+| **Fréquence** | chaque jour ouvré |
+| **Accès requis** | compte Growth Agent, rôle **commercial** — un compte lecteur ne permet ni de reporter une réponse ni de déclarer un relevé |
+| **Suppléance** | à désigner — voir « Quand personne ne peut relever » |
 
 ### La procédure
 
@@ -176,6 +183,37 @@ pas une fonctionnalité, et elle doit être attribuée à une personne nommée.
    ajouter l'opposition à la main plutôt que de trancher :
    `POST /api/v1/suppressions`. L'erreur de ne pas écrire à quelqu'un qui
    l'aurait accepté est sans conséquence ; l'inverse ne l'est pas.
+5. **Si la boîte est vide**, le déclarer quand même :
+
+   ```
+   POST /api/v1/replies/relay-check
+   ```
+
+   Sans ce geste, « personne n'a écrit » et « personne n'a relevé »
+   produisent exactement le même silence — et c'est le second cas qui laisse
+   partir une relance vers quelqu'un qui s'était opposé.
+
+### Le relevé est surveillé
+
+Le système ne peut pas lire la boîte, mais il peut constater que quelqu'un
+l'a fait. Chaque relevé — réponse reportée ou déclaration de boîte vide —
+laisse une trace dans le journal d'audit, d'où la mesure
+`growth_agent_inbox_last_relay_age_seconds`.
+
+L'alerte **`BoiteDeReponseNonRelevee`** se déclenche au bout de **quatre
+jours**. Pas trois : un relevé le vendredi matin et le suivant le lundi
+matin laissent 72 heures parfaitement normales, et une alerte qui sonne
+chaque week-end finit par ne plus être lue.
+
+### Quand personne ne peut relever
+
+Congés, arrêt, surcharge : **vider `GA_REPLY_TO_EMAIL`** et redéployer. Les
+messages cessent immédiatement d'inviter à répondre et renvoient au seul
+lien de désinscription, qui fonctionne sans personne.
+
+Ce n'est pas une dégradation du service, c'est la seule attitude honnête :
+mieux vaut ne rien promettre que promettre à vide. Remettre l'adresse au
+retour.
 
 ### Le délai compte
 

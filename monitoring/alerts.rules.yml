@@ -72,6 +72,15 @@ groups:
         annotations:
           summary: "Une purge a été arrêtée par un garde-fou."
           runbook: "Ce n'est pas une panne : le volume à supprimer dépassait le plafond, et le garde-fou a fait son travail. Lire `stopped_reason` dans /api/v1/system/retention/runs et vérifier d'où vient le volume avant de relever le plafond. Ne jamais le relever pour faire passer une purge qu'on n'a pas expliquée."
+      - alert: BoiteDeReponseNonRelevee
+        expr: growth_agent_inbox_last_relay_age_seconds > 345600
+        for: 2m
+        labels:
+          severity: critical
+          service: growth-agent
+        annotations:
+          summary: "La boîte de réponse n'a pas été relevée depuis quatre jours."
+          runbook: "Chaque message promet « répondez STOP ». Cette promesse repose sur un relevé quotidien, et il s'est interrompu : une opposition peut dormir dans la boîte pendant qu'une relance part. Relever contact@techlearn-saem.com maintenant. Si personne ne peut s'en charger durablement, vider GA_REPLY_TO_EMAIL — les messages cesseront d'inviter à répondre et renverront au seul lien de désinscription, qui fonctionne sans personne."
       - alert: SauvegardeEnRetard
         expr: growth_agent_backup_last_success_age_seconds > 172800
         for: 2m

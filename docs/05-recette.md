@@ -233,17 +233,24 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | La boîte de réponse réactive l'invitation à répondre | `test_the_confirmed_mailbox_turns_the_invitation_back_on` | ✅ |
 | Le lien reste présent même quand on invite à répondre | `test_a_monitored_message_still_carries_the_link` | ✅ |
 | L'adresse de réponse atteint le fournisseur | `test_the_configured_reply_address_reaches_the_provider` | ✅ |
-| **Relevé automatique de la boîte de réponse** | — | ❌ **Non fait** — relevé manuel, voir `docs/08-supervision.md` |
+| Un relevé vide laisse une trace | `test_an_empty_relay_counts_as_a_relay` | ✅ |
+| Le relevé est attribué à son auteur | `test_an_empty_relay_is_recorded_and_attributed` | ✅ |
+| Un lecteur ne peut pas attester d'un relevé | `test_a_reader_cannot_declare_a_relay` | ✅ |
+| Quatre jours sans relevé déclenchent une alerte | `test_four_days_of_silence_does` | ✅ |
+| Un week-end ne déclenche rien | `test_a_weekend_does_not_set_off_the_alarm` | ✅ |
+| **Relevé automatique de la boîte de réponse** | — | ❌ **Non fait** — relevé manuel par Merveille Nguetse, surveillé, voir `docs/08-supervision.md` |
 | **Envoi réel vers une boîte de test** | — | ❌ **Non fait** — en attente de D2 et du procès-verbal |
 | **Taux de réponse et entonnoir démo/pilote** | — | ⚠️ **Partiels** — ne comptent que les réponses reportées à la main |
 
-`contact@techlearn-saem.com` existe et reçoit (confirmé le 16/10/2026). Les
-messages invitent donc de nouveau à répondre « STOP ». **Mais rien ne relève
-cette boîte automatiquement** : la promesse n'est tenue que si une personne
-la lit chaque jour ouvré et reporte les réponses via
-`POST /api/v1/replies/analyze`. Le produit le dit —
-`/api/v1/system/integrations` renvoie `inbound_integration: "aucune"` et
-`reply_handling: "manuelle"`, et les KPI portent la note correspondante.
+`contact@techlearn-saem.com` existe et reçoit (confirmé le 16/10/2026),
+relevée chaque jour ouvré par **Merveille Nguetse**. Les messages invitent
+donc de nouveau à répondre « STOP ». Rien ne relève la boîte
+automatiquement, mais le relevé est **observable** : chaque passage laisse
+une trace, y compris quand la boîte est vide, et une alerte se déclenche
+après quatre jours de silence. Le produit ne prétend pas pour autant à une
+réception automatique — `/api/v1/system/integrations` renvoie
+`inbound_integration: "aucune"` et `reply_handling: "manuelle"`, et les KPI
+portent la note correspondante.
 
 Dans les tests, la réponse STOP est injectée dans l'analyste comme si elle
 venait d'arriver. Tout ce qui suit la détection est prouvé ; **le relevé

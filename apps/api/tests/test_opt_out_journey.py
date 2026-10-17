@@ -302,3 +302,32 @@ def test_the_objection_survives_a_restart(
         )
     finally:
         fraiche.close()
+
+
+# --- Le relevé de la boîte, rendu observable ------------------------------
+
+
+def test_a_reader_cannot_declare_a_relay(seeded, client, auth):
+    """Le relevé engage : il atteste qu'une personne a lu la boîte. Un
+    lecteur ne peut pas en attester, pas plus qu'il ne peut reporter une
+    réponse — les deux exigent le même rôle."""
+    assert client.post("/api/v1/replies/relay-check").status_code == 401
+    assert client.post("/api/v1/replies/relay-check", headers=auth("lecteur")).status_code == 403
+
+
+def test_an_empty_relay_is_recorded_and_attributed(seeded, client, auth, session_factory):
+    from growth_agent.models.ops import AuditEvent
+
+    response = client.post("/api/v1/replies/relay-check", headers=auth("commercial"))
+    assert response.status_code == 201
+    assert "at" in response.json()
+
+    s = session_factory()
+    try:
+        event = s.query(AuditEvent).filter(AuditEvent.action == "inbox.relayed").one()
+        # Qui a relevé, et quand : c'est tout ce que la trace contient.
+        # Aucune adresse de prospect, aucun contenu de réponse.
+        assert event.actor == "commercial@growth.example.org"
+        assert event.object_type == "reply_inbox"
+    finally:
+        s.close()

@@ -457,3 +457,70 @@ def test_the_rules_file_is_valid_yaml_and_covers_every_rule():
     for rule in rules:
         assert rule["annotations"]["runbook"]
         assert rule["labels"]["severity"] in {"critical", "warning"}
+
+
+# --- Relevé de la boîte de réponse ----------------------------------------
+
+MONITORED = Settings(
+    email_from="noreply@techlearn-saem.com",
+    reply_to_email="contact@techlearn-saem.com",
+)
+
+
+def _relay(session, *, action="inbox.relayed", ago=timedelta(0)):
+    from growth_agent.services.audit import record_audit
+
+    record_audit(
+        session,
+        actor="merveille@techlearn-saem.com",
+        actor_role="commercial",
+        action=action,
+        object_type="reply_inbox",
+        now=datetime.now(UTC) - ago,
+    )
+    session.flush()
+
+
+def test_the_relay_is_not_watched_when_no_one_was_promised_a_reply(session, product_educore):
+    """Sans invitation à répondre, personne n'a rien promis : il n'y a rien à
+    surveiller, et une alerte serait du bruit."""
+    samples = collect(session, settings=Settings())
+    assert _value(samples, "growth_agent_inbox_last_relay_age_seconds") is None
+
+
+def test_a_never_relayed_inbox_is_an_alert(session, product_educore):
+    samples = collect(session, settings=MONITORED)
+    assert _value(samples, "growth_agent_inbox_last_relay_age_seconds") == float("inf")
+    firing = {alert["name"] for alert in evaluate_alerts(samples)}
+    assert "BoiteDeReponseNonRelevee" in firing
+
+
+def test_an_empty_relay_counts_as_a_relay(session, product_educore):
+    """« Personne n'a écrit » et « personne n'a relevé » produisent le même
+    silence. Le relevé vide est ce qui les distingue."""
+    _relay(session)
+    samples = collect(session, settings=MONITORED)
+    age = _value(samples, "growth_agent_inbox_last_relay_age_seconds")
+    assert age is not None and age < 60
+    assert evaluate_alerts(samples) == []
+
+
+def test_reporting_a_reply_also_counts_as_a_relay(session, product_educore):
+    _relay(session, action="conversation_analyst.classified")
+    samples = collect(session, settings=MONITORED)
+    assert evaluate_alerts(samples) == []
+
+
+def test_a_weekend_does_not_set_off_the_alarm(session, product_educore):
+    """Relevé le vendredi matin, suivant le lundi matin : 72 heures tout à
+    fait normales. Une alerte qui sonne chaque week-end finit par ne plus
+    être lue."""
+    _relay(session, ago=timedelta(hours=72))
+    firing = {alert["name"] for alert in evaluate_alerts(collect(session, settings=MONITORED))}
+    assert "BoiteDeReponseNonRelevee" not in firing
+
+
+def test_four_days_of_silence_does(session, product_educore):
+    _relay(session, ago=timedelta(days=4, hours=1))
+    firing = {alert["name"] for alert in evaluate_alerts(collect(session, settings=MONITORED))}
+    assert "BoiteDeReponseNonRelevee" in firing

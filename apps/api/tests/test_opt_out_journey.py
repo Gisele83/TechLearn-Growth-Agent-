@@ -320,11 +320,16 @@ def test_an_empty_relay_is_recorded_and_attributed(seeded, client, auth, session
 
     response = client.post("/api/v1/replies/relay-check", headers=auth("commercial"))
     assert response.status_code == 201
-    assert "at" in response.json()
+    corps = response.json()
+    # Attribuée et horodatée — exigence 1.
+    assert corps["declared_by"] == "commercial@growth.example.org"
+    assert corps["declared_at"]
+    # Et nommée pour ce qu'elle est — exigence 2.
+    assert "pas une preuve" in corps["nature"]
 
     s = session_factory()
     try:
-        event = s.query(AuditEvent).filter(AuditEvent.action == "inbox.relayed").one()
+        event = s.query(AuditEvent).filter(AuditEvent.action == "inbox.relay_declared").one()
         # Qui a relevé, et quand : c'est tout ce que la trace contient.
         # Aucune adresse de prospect, aucun contenu de réponse.
         assert event.actor == "commercial@growth.example.org"

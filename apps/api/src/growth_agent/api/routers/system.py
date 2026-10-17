@@ -149,7 +149,7 @@ def alerts(
     quelqu'un qui ne saura pas quoi faire, et finit par être ignorée.
     """
     samples = collect(session, settings=settings)
-    firing = evaluate_alerts(samples)
+    firing = evaluate_alerts(samples, settings=settings)
     return {
         "firing": firing,
         "count": len(firing),

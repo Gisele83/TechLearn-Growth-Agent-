@@ -81,6 +81,8 @@ contactées, oppositions, envois bloqués). C'est la raison du jeton.
 | `growth_agent_purge_failures_24h` | purges en échec ou interrompues |
 | `growth_agent_purge_blocked_24h` | purges arrêtées par un garde-fou |
 | `growth_agent_backup_last_success_age_seconds` | âge de la dernière sauvegarde vérifiée |
+| `growth_agent_inbox_last_declared_relay_age_seconds` | âge du dernier relevé **déclaré** de la boîte de réponse |
+| `growth_agent_follow_ups_held_by_stale_inbox` | 1 quand les relances sont suspendues faute de relevé |
 
 ### Sans Prometheus
 
@@ -161,7 +163,8 @@ pas une fonctionnalité.
 | **Responsable** | Merveille Nguetse |
 | **Fréquence** | chaque jour ouvré |
 | **Accès requis** | compte Growth Agent, rôle **commercial** — un compte lecteur ne permet ni de reporter une réponse ni de déclarer un relevé |
-| **Suppléance** | à désigner — voir « Quand personne ne peut relever » |
+| **Suppléance** | **à désigner** — voir « Suppléance et reprise » |
+| **Nature du relevé déclaré** | une déclaration nominative, **pas une preuve** de consultation |
 
 ### La procédure
 
@@ -193,27 +196,100 @@ pas une fonctionnalité.
    produisent exactement le même silence — et c'est le second cas qui laisse
    partir une relance vers quelqu'un qui s'était opposé.
 
-### Le relevé est surveillé
+### Ce que le relevé déclaré prouve, et ce qu'il ne prouve pas
 
-Le système ne peut pas lire la boîte, mais il peut constater que quelqu'un
-l'a fait. Chaque relevé — réponse reportée ou déclaration de boîte vide —
-laisse une trace dans le journal d'audit, d'où la mesure
-`growth_agent_inbox_last_relay_age_seconds`.
+Il faut le dire franchement, parce que la suite en dépend.
 
-L'alerte **`BoiteDeReponseNonRelevee`** se déclenche au bout de **quatre
-jours**. Pas trois : un relevé le vendredi matin et le suivant le lundi
-matin laissent 72 heures parfaitement normales, et une alerte qui sonne
-chaque week-end finit par ne plus être lue.
+Un appel à `/replies/relay-check` atteste qu'un utilisateur **authentifié
+affirme** avoir relevé la boîte, à une date donnée. Il n'atteste ni que la
+boîte a été ouverte, ni qu'elle a été lue, ni qu'elle était vide.
 
-### Quand personne ne peut relever
+Aucune preuve technique de consultation n'est possible depuis Growth Agent :
+elle supposerait un accès au serveur de messagerie, que l'application n'a pas
+et ne demande pas. Les noms le disent — la mesure s'appelle
+`growth_agent_inbox_last_declared_relay_age_seconds`, pas `..._relay_...`.
 
-Congés, arrêt, surcharge : **vider `GA_REPLY_TO_EMAIL`** et redéployer. Les
-messages cessent immédiatement d'inviter à répondre et renvoient au seul
-lien de désinscription, qui fonctionne sans personne.
+Ce que la déclaration vaut quand même : elle est **nominative, horodatée,
+journalisée**, et son absence se voit. Quelqu'un qui déclarerait sans relever
+engagerait sa responsabilité. C'est le niveau de garantie qu'une organisation
+peut offrir sur une tâche humaine, et il vaut mieux l'appeler par son nom que
+le présenter pour ce qu'il n'est pas.
+
+### Deux conséquences automatiques d'un relevé en retard
+
+**1. L'alerte.** `BoiteDeReponseNonRelevee` se déclenche au bout de **quatre
+jours**. Pas trois : un relevé le vendredi matin et le suivant le lundi matin
+laissent 72 heures parfaitement normales, et une alerte qui sonne chaque
+week-end finit par ne plus être lue. Les destinataires — responsable et
+suppléante — sont lus dans `GA_INBOX_RELAY_OWNER_EMAIL` et
+`GA_INBOX_RELAY_DEPUTY_EMAIL`, et exposés par `/api/v1/system/alerts` dans le
+champ `notify`.
+
+> Ces adresses ne figurent **jamais** dans une étiquette de métrique. Une
+> adresse dans Prometheus est une donnée personnelle conservée par un système
+> tiers, hors de toute politique de rétention.
+>
+> Growth Agent **n'envoie pas** lui-même ce courriel d'alerte : l'application
+> n'a qu'un seul chemin d'envoi, celui de la prospection, et en ouvrir un
+> second affaiblirait la garantie qui veut qu'aucun message ne parte sans
+> approbation. L'acheminement revient à l'Alertmanager, ou à la personne qui
+> lit `/api/v1/system/alerts`.
+
+**2. Les relances sont suspendues.** Au-delà du même seuil
+(`GA_INBOX_RELAY_MAX_AGE_HOURS`, 96 h par défaut), toute **relance** vers un
+contact déjà sollicité est mise en attente avec le motif `stale_inbox`, au
+lieu de partir. La raison est directe : une opposition pourrait dormir dans
+la boîte non relevée.
+
+Ce garde-fou a trois limites, toutes délibérées :
+
+| | |
+|---|---|
+| **Premier contact** | jamais retenu — personne n'a encore pu répondre |
+| **Opposition déjà enregistrée** | **toujours honorée immédiatement**, relevé en retard ou non. Le garde-fou protège de ce qu'on ignore, jamais au prix de ce qu'on sait |
+| **Enregistrement d'une opposition** | jamais bloqué — une opposition doit pouvoir entrer à tout moment |
+
+Le blocage est **transitoire** : le brouillon n'est pas condamné et repart
+dès qu'un relevé est déclaré. Il laisse un événement `send_blocked` motivé —
+une suspension silencieuse serait indiscernable d'un oubli.
+
+### Suppléance et reprise après absence
+
+Une personne unique est un point de panne. La suppléante doit être désignée
+nommément, disposer d'un compte au rôle **commercial**, et connaître cette
+procédure — pas la découvrir le jour où elle sert.
+
+**Avant une absence prévue** (congés, déplacement) :
+
+1. Renseigner `GA_INBOX_RELAY_DEPUTY_EMAIL` si ce n'est pas déjà fait.
+2. Prévenir la suppléante des dates exactes.
+3. Vérifier qu'elle peut se connecter et déclarer un relevé — un compte qui
+   n'a jamais servi est un compte dont on découvre le mot de passe oublié au
+   mauvais moment.
+
+**Si personne ne peut relever** (absence imprévue, arrêt, surcharge) :
+
+1. **Vider `GA_REPLY_TO_EMAIL`** et redéployer. Les messages cessent
+   immédiatement d'inviter à répondre et renvoient au seul lien de
+   désinscription, qui fonctionne sans personne.
+2. Le contrôle de fraîcheur devient alors sans objet et les relances
+   repartent : plus aucune boîte n'est promise, donc plus rien à relever.
 
 Ce n'est pas une dégradation du service, c'est la seule attitude honnête :
-mieux vaut ne rien promettre que promettre à vide. Remettre l'adresse au
-retour.
+mieux vaut ne rien promettre que promettre à vide.
+
+**À la reprise :**
+
+1. **Relever la boîte en premier**, avant toute autre chose. Les réponses
+   accumulées pendant l'absence peuvent contenir des oppositions non
+   enregistrées, et ce sont elles qui comptent.
+2. Reporter chaque réponse (`POST /api/v1/replies/analyze`), en commençant
+   par les plus anciennes.
+3. Remettre `GA_REPLY_TO_EMAIL` si elle avait été vidée, et redéployer.
+4. Déclarer le relevé (`POST /api/v1/replies/relay-check`). Les relances
+   suspendues repartent d'elles-mêmes.
+5. Vérifier `/api/v1/replies/relay-status` : `fresh` doit être vrai et
+   `blocks_follow_ups` faux.
 
 ### Le délai compte
 

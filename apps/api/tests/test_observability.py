@@ -24,6 +24,7 @@ from growth_agent.retention.runner import (
     PURGE_INTERRUPTED,
     PURGE_SUCCEEDED,
 )
+from growth_agent.services.inbox_relay import RELAY_DECLARED_ACTION
 from growth_agent.services.observability import (
     ALERT_RULES,
     STALE_RESERVATION_MINUTES,
@@ -461,13 +462,18 @@ def test_the_rules_file_is_valid_yaml_and_covers_every_rule():
 
 # --- Relevé de la boîte de réponse ----------------------------------------
 
+#: Configuration complète : boîte de réponse, responsable et suppléance.
+#: Sans les deux dernières, la configuration est incohérente — et c'est une
+#: alerte à part entière, qui n'a pas à polluer les épreuves du relevé.
 MONITORED = Settings(
     email_from="noreply@techlearn-saem.com",
     reply_to_email="contact@techlearn-saem.com",
+    inbox_relay_owner_email="merveille@techlearn-saem.com",
+    inbox_relay_deputy_email="suppleance@techlearn-saem.com",
 )
 
 
-def _relay(session, *, action="inbox.relayed", ago=timedelta(0)):
+def _relay(session, *, action=RELAY_DECLARED_ACTION, ago=timedelta(0)):
     from growth_agent.services.audit import record_audit
 
     record_audit(
@@ -485,12 +491,12 @@ def test_the_relay_is_not_watched_when_no_one_was_promised_a_reply(session, prod
     """Sans invitation à répondre, personne n'a rien promis : il n'y a rien à
     surveiller, et une alerte serait du bruit."""
     samples = collect(session, settings=Settings())
-    assert _value(samples, "growth_agent_inbox_last_relay_age_seconds") is None
+    assert _value(samples, "growth_agent_inbox_last_declared_relay_age_seconds") is None
 
 
 def test_a_never_relayed_inbox_is_an_alert(session, product_educore):
     samples = collect(session, settings=MONITORED)
-    assert _value(samples, "growth_agent_inbox_last_relay_age_seconds") == float("inf")
+    assert _value(samples, "growth_agent_inbox_last_declared_relay_age_seconds") == float("inf")
     firing = {alert["name"] for alert in evaluate_alerts(samples)}
     assert "BoiteDeReponseNonRelevee" in firing
 
@@ -500,7 +506,7 @@ def test_an_empty_relay_counts_as_a_relay(session, product_educore):
     silence. Le relevé vide est ce qui les distingue."""
     _relay(session)
     samples = collect(session, settings=MONITORED)
-    age = _value(samples, "growth_agent_inbox_last_relay_age_seconds")
+    age = _value(samples, "growth_agent_inbox_last_declared_relay_age_seconds")
     assert age is not None and age < 60
     assert evaluate_alerts(samples) == []
 
@@ -524,3 +530,33 @@ def test_four_days_of_silence_does(session, product_educore):
     _relay(session, ago=timedelta(days=4, hours=1))
     firing = {alert["name"] for alert in evaluate_alerts(collect(session, settings=MONITORED))}
     assert "BoiteDeReponseNonRelevee" in firing
+
+
+def test_an_unnamed_deputy_is_itself_an_alert():
+    """Une personne unique est un point de panne. La configuration le dit."""
+    sans_suppleance = Settings(
+        email_from="noreply@techlearn-saem.com",
+        reply_to_email="contact@techlearn-saem.com",
+        inbox_relay_owner_email="merveille@techlearn-saem.com",
+    )
+    avertissements = " ".join(sans_suppleance.configuration_warnings())
+    assert "suppléance" in avertissements.lower()
+
+
+def test_the_alert_carries_who_to_warn(session, product_educore):
+    """Les destinataires viennent de la configuration, jamais d'une
+    étiquette de métrique : une adresse y serait conservée par un système
+    tiers, hors de toute politique de rétention."""
+    firing = evaluate_alerts(collect(session, settings=MONITORED), settings=MONITORED)
+    alerte = next(a for a in firing if a["name"] == "BoiteDeReponseNonRelevee")
+    assert alerte["notify"] == [
+        "merveille@techlearn-saem.com",
+        "suppleance@techlearn-saem.com",
+    ]
+
+
+def test_no_address_ever_reaches_the_metrics(session, product_educore):
+    body = render_prometheus(collect(session, settings=MONITORED))
+    assert "merveille@techlearn-saem.com" not in body
+    assert "suppleance@techlearn-saem.com" not in body
+    assert "contact@techlearn-saem.com" not in body

@@ -57,6 +57,7 @@ from growth_agent.services.approvals import (
     request_approval,
 )
 from growth_agent.services.audit import record_audit
+from growth_agent.services.inbox_relay import RELAY_DECLARED_ACTION, check_freshness
 from growth_agent.services.outreach import send_draft
 from growth_agent.services.suppression import add_suppression, list_suppressions
 from growth_agent.services.writing import analyze_message
@@ -391,38 +392,75 @@ def delete_suppression(
 # --- Réponses ----------------------------------------------------------------
 
 
-#: Trace laissée par un relevé de boîte sans réponse à reporter. Sans elle,
-#: « personne n'a écrit » et « personne n'a relevé » produisent exactement le
-#: même silence — et c'est le second cas qui laisse partir une relance vers
-#: quelqu'un qui s'était opposé.
-INBOX_RELAY_ACTION = "inbox.relayed"
-
-
 @router.post("/replies/relay-check", status_code=status.HTTP_201_CREATED)
-def record_inbox_relay(
+def declare_inbox_relay(
     session: SessionDep,
+    settings: SettingsDep,
     user: CurrentUser = Depends(require(CAN_OPERATE)),
-) -> dict[str, str]:
+) -> dict[str, object]:
     """Déclare que la boîte de réponse a été relevée, sans rien à reporter.
 
-    Chaque message promet « répondez STOP ». Cette promesse repose sur une
-    personne qui lit une boîte, et rien dans le système ne pouvait le
-    constater. Un relevé vide laisse désormais une trace, ce qui rend
-    l'engagement observable — et son interruption, visible.
+    **C'est une déclaration, pas une preuve.** Elle atteste qu'un utilisateur
+    authentifié affirme avoir relevé la boîte à cet instant ; elle n'atteste
+    ni que la boîte a été ouverte, ni qu'elle a été lue. Aucune preuve
+    technique de consultation n'est possible depuis ici — elle supposerait un
+    accès au serveur de messagerie, que Growth Agent n'a pas et ne demande
+    pas.
+
+    Ce qu'elle vaut : nominative, horodatée, journalisée, et son absence se
+    voit. C'est le niveau de garantie qu'une organisation peut offrir sur une
+    tâche humaine, et il faut l'appeler par son nom.
+
+    Pourquoi déclarer une boîte vide : sans ce geste, « personne n'a écrit »
+    et « personne n'a relevé » produisent exactement le même silence — et
+    c'est le second cas qui laisse partir une relance vers quelqu'un qui
+    s'était opposé.
     """
     moment = datetime.now(UTC)
     record_audit(
         session,
         actor=user.email,
         actor_role=user.role,
-        action=INBOX_RELAY_ACTION,
+        action=RELAY_DECLARED_ACTION,
         object_type="reply_inbox",
         object_id=None,
-        metadata={"outcome": "aucune réponse à reporter"},
+        metadata={
+            "nature": "déclaration",
+            "outcome": "aucune réponse à reporter",
+        },
         now=moment,
     )
     session.flush()
-    return {"status": "relevé enregistré", "at": moment.isoformat()}
+    freshness = check_freshness(session, settings=settings, now=moment)
+    return {
+        "status": "déclaration enregistrée",
+        "declared_by": user.email,
+        "declared_at": moment.isoformat(),
+        "nature": "déclaration nominative, pas une preuve de consultation",
+        "freshness": freshness.as_dict(),
+    }
+
+
+@router.get("/replies/relay-status")
+def inbox_relay_status(
+    session: SessionDep,
+    settings: SettingsDep,
+    _: CurrentUser = Depends(require(CAN_READ)),
+) -> dict[str, object]:
+    """Âge du dernier relevé déclaré, et conséquence sur les relances."""
+    freshness = check_freshness(session, settings=settings)
+    return {
+        **freshness.as_dict(),
+        "blocks_follow_ups": freshness.applicable and not freshness.fresh,
+        "notify": [
+            address
+            for address in (
+                settings.inbox_relay_owner_email,
+                settings.inbox_relay_deputy_email,
+            )
+            if address
+        ],
+    }
 
 
 @router.post("/replies/analyze", response_model=ReplyAnalysisOut)

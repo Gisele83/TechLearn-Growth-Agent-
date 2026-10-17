@@ -238,6 +238,17 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | Un lecteur ne peut pas attester d'un relevé | `test_a_reader_cannot_declare_a_relay` | ✅ |
 | Quatre jours sans relevé déclenchent une alerte | `test_four_days_of_silence_does` | ✅ |
 | Un week-end ne déclenche rien | `test_a_weekend_does_not_set_off_the_alarm` | ✅ |
+| L'alerte porte ses destinataires | `test_the_alert_carries_who_to_warn` | ✅ |
+| Aucune adresse n'atteint les métriques | `test_no_address_ever_reaches_the_metrics` | ✅ |
+| L'absence de suppléance est elle-même signalée | `test_an_unnamed_deputy_is_itself_an_alert` | ✅ |
+| Une relance est suspendue si le relevé est trop vieux | `test_a_follow_up_is_held_when_the_declaration_is_stale` | ✅ |
+| Le brouillon suspendu n'est pas condamné | `test_the_held_draft_is_not_condemned` | ✅ |
+| La suspension laisse un événement motivé | `test_the_hold_is_recorded_as_a_blocked_event` | ✅ |
+| Un premier contact n'est jamais suspendu | `test_a_first_contact_goes_out_even_without_any_declaration` | ✅ |
+| Sans boîte promise, rien n'est suspendu | `test_follow_ups_are_not_held_when_no_mailbox_is_promised` | ✅ |
+| **Une opposition enregistrée prime sur le relevé en retard** | `test_a_recorded_objection_is_honoured_even_with_a_stale_inbox` | ✅ |
+| Une opposition peut entrer quel que soit l'âge du relevé | `test_an_objection_can_always_be_recorded_whatever_the_relay_age` | ✅ |
+| Le seuil de fraîcheur est configurable | `test_the_threshold_is_configurable` | ✅ |
 | **Relevé automatique de la boîte de réponse** | — | ❌ **Non fait** — relevé manuel par Merveille Nguetse, surveillé, voir `docs/08-supervision.md` |
 | **Envoi réel vers une boîte de test** | — | ❌ **Non fait** — en attente de D2 et du procès-verbal |
 | **Taux de réponse et entonnoir démo/pilote** | — | ⚠️ **Partiels** — ne comptent que les réponses reportées à la main |

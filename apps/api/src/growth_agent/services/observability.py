@@ -34,7 +34,7 @@ from growth_agent import __version__
 from growth_agent.config import Settings
 from growth_agent.models.catalog import Product
 from growth_agent.models.enums import ApprovalDecision, DeliveryState, OutreachEventType
-from growth_agent.models.ops import AuditEvent, PurgeRun
+from growth_agent.models.ops import PurgeRun
 from growth_agent.models.outreach import ApprovalRequest, OutreachEvent, SuppressionEntry
 from growth_agent.retention.runner import (
     PURGE_BLOCKED,
@@ -42,16 +42,11 @@ from growth_agent.retention.runner import (
     PURGE_INTERRUPTED,
     PURGE_SUCCEEDED,
 )
+from growth_agent.services.inbox_relay import check_freshness
 
 #: Au-delà de ce délai, une réservation d'envoi encore à l'état « reserved »
 #: ne correspond plus à un envoi en cours mais à un processus mort.
 STALE_RESERVATION_MINUTES = 15
-
-#: Actions du journal d'audit qui attestent qu'une personne a relevé la boîte
-#: de réponse — soit en reportant une réponse, soit en déclarant qu'il n'y en
-#: avait aucune. Les deux comptent : c'est le geste qu'on surveille, pas son
-#: résultat.
-RELAY_ACTIONS = ("inbox.relayed", "conversation_analyst.classified")
 
 
 @dataclass(frozen=True)
@@ -175,7 +170,7 @@ ALERT_RULES: tuple[AlertRule, ...] = (
     ),
     AlertRule(
         name="BoiteDeReponseNonRelevee",
-        metric="growth_agent_inbox_last_relay_age_seconds",
+        metric="growth_agent_inbox_last_declared_relay_age_seconds",
         # 96 heures : un relevé le vendredi matin et le suivant le lundi
         # matin laissent 72 heures tout à fait normales. Alerter à 72 ferait
         # sonner chaque week-end, et une alerte qui sonne pour rien finit
@@ -183,15 +178,20 @@ ALERT_RULES: tuple[AlertRule, ...] = (
         threshold=345600,
         comparison="gt",
         severity="critical",
-        summary="La boîte de réponse n'a pas été relevée depuis quatre jours.",
+        summary=(
+            "Aucun relevé de la boîte de réponse déclaré depuis quatre jours. "
+            "Les relances sont suspendues."
+        ),
         runbook=(
-            "Chaque message promet « répondez STOP ». Cette promesse repose "
-            "sur un relevé quotidien, et il s'est interrompu : une opposition "
-            "peut dormir dans la boîte pendant qu'une relance part. Relever "
-            "contact@techlearn-saem.com maintenant. Si personne ne peut s'en "
-            "charger durablement, vider GA_REPLY_TO_EMAIL — les messages "
-            "cesseront d'inviter à répondre et renverront au seul lien de "
-            "désinscription, qui fonctionne sans personne."
+            "Chaque message promet « répondez STOP ». Cette promesse repose sur "
+            "un relevé quotidien déclaré, et il s'est interrompu : une "
+            "opposition peut dormir dans la boîte. Les relances sont déjà "
+            "suspendues automatiquement ; les oppositions déjà enregistrées, "
+            "elles, restent traitées. Relever contact@techlearn-saem.com, puis "
+            "déclarer le relevé (POST /api/v1/replies/relay-check). "
+            "Destinataires à prévenir : /api/v1/system/alerts, champ « notify ». "
+            "Si personne ne peut s'en charger durablement, vider "
+            "GA_REPLY_TO_EMAIL — les messages cesseront d'inviter à répondre."
         ),
     ),
     AlertRule(
@@ -485,22 +485,32 @@ def collect(
         )
     )
 
-    # --- Relevé de la boîte de réponse ---------------------------------------
-    # Mesurée seulement quand les messages invitent à répondre : sans cette
+    # --- Relevé déclaré de la boîte de réponse -------------------------------
+    # Mesuré seulement quand les messages invitent à répondre : sans cette
     # invitation, personne n'a rien promis et il n'y a rien à surveiller.
-    if settings.replies_are_monitored():
-        last_relay = session.execute(
-            select(func.max(AuditEvent.occurred_at)).where(AuditEvent.action.in_(RELAY_ACTIONS))
-        ).scalar_one_or_none()
+    #
+    # « declared » est dans le nom, et ce n'est pas une précaution de style :
+    # cette mesure suit une déclaration nominative, pas une consultation
+    # constatée. Aucune preuve technique de lecture n'est accessible d'ici.
+    freshness = check_freshness(session, settings=settings, now=moment)
+    if freshness.applicable:
         samples.append(
             Sample(
-                "growth_agent_inbox_last_relay_age_seconds",
-                float("inf")
-                if last_relay is None
-                else max(0.0, (moment - _aware(last_relay)).total_seconds()),
+                "growth_agent_inbox_last_declared_relay_age_seconds",
+                float("inf") if freshness.age_seconds is None else freshness.age_seconds,
                 help_text=(
-                    "Temps écoulé depuis le dernier relevé de la boîte de réponse, "
-                    "qu'une réponse ait été reportée ou non."
+                    "Temps écoulé depuis la dernière DÉCLARATION de relevé de la "
+                    "boîte de réponse. Déclaration nominative, pas preuve de "
+                    "consultation."
+                ),
+            )
+        )
+        samples.append(
+            Sample(
+                "growth_agent_follow_ups_held_by_stale_inbox",
+                0.0 if freshness.fresh else 1.0,
+                help_text=(
+                    "1 quand les relances sont suspendues faute de relevé déclaré assez récent."
                 ),
             )
         )
@@ -519,7 +529,9 @@ def collect(
     return samples
 
 
-def evaluate_alerts(samples: list[Sample]) -> list[dict[str, Any]]:
+def evaluate_alerts(
+    samples: list[Sample], *, settings: Settings | None = None
+) -> list[dict[str, Any]]:
     """Alertes actuellement déclenchées, d'après les mesures relevées.
 
     Permet de superviser sans Prometheus : tout le monde n'en a pas un, et une
@@ -549,11 +561,33 @@ def evaluate_alerts(samples: list[Sample]) -> list[dict[str, Any]]:
                 "comparison": rule.comparison,
                 "summary": rule.summary,
                 "runbook": rule.runbook,
+                # Jamais dans une étiquette de métrique : une adresse y
+                # deviendrait une donnée personnelle conservée par un système
+                # tiers, hors de toute politique de rétention. Ici, la réponse
+                # est authentifiée et éphémère.
+                "notify": _recipients(rule, settings),
             }
         )
     severity_order = {"critical": 0, "warning": 1, "info": 2}
     firing.sort(key=lambda item: severity_order.get(item["severity"], 9))
     return firing
+
+
+#: Alertes dont les destinataires sont nommés dans la configuration.
+_RULE_RECIPIENTS: dict[str, tuple[str, ...]] = {
+    "BoiteDeReponseNonRelevee": ("inbox_relay_owner_email", "inbox_relay_deputy_email"),
+}
+
+
+def _recipients(rule: AlertRule, settings: Settings | None) -> list[str]:
+    """Qui prévenir. Lu depuis la configuration, jamais depuis une métrique."""
+    if settings is None:
+        return []
+    return [
+        address
+        for field in _RULE_RECIPIENTS.get(rule.name, ())
+        if (address := getattr(settings, field, ""))
+    ]
 
 
 def is_infinite(value: float | None) -> bool:

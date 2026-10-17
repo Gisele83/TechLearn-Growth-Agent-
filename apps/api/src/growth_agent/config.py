@@ -123,6 +123,20 @@ class Settings(BaseSettings):
     # qu'il ne permet pas d'exercer : l'envoi réel est donc refusé.
     public_base_url: str = ""
 
+    # --- Relevé de la boîte de réponse ---------------------------------------
+    #: Au-delà de cet âge, le dernier relevé déclaré est jugé trop ancien et
+    #: les **relances** sont mises en attente. 96 heures par défaut : un
+    #: relevé le vendredi matin et le suivant le lundi matin laissent 72
+    #: heures parfaitement normales. Abaisser cette valeur exige une
+    #: discipline quotidienne stricte, week-ends compris.
+    inbox_relay_max_age_hours: float = 96.0
+    #: Destinataires de l'alerte quand le relevé est en retard. Exposés par
+    #: /api/v1/system/alerts, jamais dans les métriques : une adresse dans
+    #: une étiquette Prometheus est une donnée personnelle conservée hors de
+    #: toute politique de rétention.
+    inbox_relay_owner_email: str = ""
+    inbox_relay_deputy_email: str = ""
+
     # --- Supervision ---------------------------------------------------------
     #: Jeton présenté par le collecteur de métriques. Vide : l'endpoint
     #: /metrics est refusé. Les métriques portent des chiffres commerciaux —
@@ -293,6 +307,16 @@ class Settings(BaseSettings):
             warnings.append(
                 "SendGrid en bac à sable : les requêtes sont validées mais "
                 "aucun message n'est livré."
+            )
+        if self.replies_are_monitored() and not self.inbox_relay_owner_email:
+            warnings.append(
+                "Les messages invitent à répondre mais GA_INBOX_RELAY_OWNER_EMAIL "
+                "est vide : un retard de relevé n'alerterait personne."
+            )
+        if self.replies_are_monitored() and not self.inbox_relay_deputy_email:
+            warnings.append(
+                "Aucune suppléance déclarée (GA_INBOX_RELAY_DEPUTY_EMAIL) : une "
+                "absence de la responsable interromprait le relevé sans relais."
             )
         if _is_noreply(self.email_from) and not self.reply_to_email:
             warnings.append(

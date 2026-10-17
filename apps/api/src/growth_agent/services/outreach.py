@@ -44,6 +44,7 @@ from growth_agent.models.outreach import MessageDraft, OutreachEvent
 from growth_agent.security.redaction import digest
 from growth_agent.services.approvals import check_send_gate
 from growth_agent.services.audit import record_audit
+from growth_agent.services.inbox_relay import check_freshness
 from growth_agent.services.suppression import check_suppression
 from growth_agent.services.unsubscribe import issue_token
 
@@ -191,6 +192,33 @@ def send_draft(
             f"Plafond atteint : {contact_sends} message(s) en 30 jours pour ce contact "
             f"(maximum {settings.email_max_per_contact_per_30_days}).",
         )
+
+    # 5 bis. Fraîcheur du relevé de la boîte de réponse ---------------------
+    # Uniquement pour une **relance** : un premier contact ne peut pas avoir
+    # suscité de réponse, et le bloquer n'empêcherait rien.
+    #
+    # Le contrôle vient APRÈS l'opposition (contrôle 2), et c'est délibéré :
+    # une opposition déjà enregistrée reste traitée immédiatement, qu'un
+    # relevé soit en retard ou non. Ce garde-fou protège de ce qu'on ignore,
+    # jamais au prix de ce qu'on sait déjà.
+    if contact_sends > 0:
+        freshness = check_freshness(session, settings=settings, now=moment)
+        if freshness.applicable and not freshness.fresh:
+            if freshness.declared_at is None:
+                detail = (
+                    "Relance suspendue : aucun relevé de la boîte de réponse n'a "
+                    "jamais été déclaré. Une opposition pourrait y dormir."
+                )
+            else:
+                detail = (
+                    "Relance suspendue : dernier relevé déclaré il y a "
+                    f"{freshness.age_seconds / 3600:.0f} h "
+                    f"(maximum {settings.inbox_relay_max_age_hours:.0f} h). "
+                    "Une opposition pourrait dormir dans la boîte."
+                )
+            # Motif transitoire : le brouillon n'est pas condamné, il repart
+            # dès qu'un relevé est déclaré.
+            return _block("stale_inbox", detail)
 
     if draft.campaign_id:
         day_start = moment - timedelta(days=1)

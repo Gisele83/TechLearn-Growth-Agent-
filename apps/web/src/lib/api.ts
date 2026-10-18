@@ -3,6 +3,7 @@ import type {
   Approval,
   AuditEvent,
   Campaign,
+  CohortReport,
   Draft,
   GrowthReport,
   Health,
@@ -150,6 +151,8 @@ export const api = {
 
   kpis: (productCode?: string, windowDays = 90) =>
     request<ProductKPI[]>(`/kpis${query({ product_code: productCode, window_days: windowDays })}`),
+  cohorts: (params: { product_code: string; campaign_slug?: string; months?: number }) =>
+    request<CohortReport>(`/cohorts${query(params)}`),
   report: (windowDays = 90) =>
     request<GrowthReport>(`/report${query({ window_days: windowDays })}`),
   audit: (params: { object_type?: string; action?: string; limit?: number; offset?: number }) =>

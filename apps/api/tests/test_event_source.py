@@ -411,3 +411,52 @@ def test_the_cohort_payload_carries_everything_the_screen_needs(client, seeded, 
 
 def test_reading_the_cohorts_requires_being_logged_in(client, seeded):
     assert client.get("/api/v1/cohorts?product_code=educore").status_code == 401
+
+
+# --- Ce que l'écran lit, et ce que l'API écrit ----------------------------
+
+
+def _page_performance() -> str:
+    chemin = Path(__file__).resolve().parents[2] / "web/src/pages/Performance.tsx"
+    return chemin.read_text(encoding="utf-8")
+
+
+def test_the_screen_reads_the_stages_the_api_actually_produces():
+    """Garde-fou de dérive entre les deux langages.
+
+    Renommer une étape côté Python laisserait la page lire une clé absente :
+    `row.counts['demo_held']` vaut alors `undefined`, l'interface affiche 0,
+    et la direction conclut qu'aucune démonstration n'a eu lieu. Aucune
+    erreur nulle part — le pire des cas.
+    """
+    import re
+
+    trouve = re.search(
+        r"const STAGES: Array<\{ key: string; label: string \}> = \[(.*?)\]",
+        _page_performance(),
+        re.DOTALL,
+    )
+    assert trouve, "STAGES introuvable dans apps/web/src/pages/Performance.tsx"
+    cote_web = re.findall(r"key: '([a-z_]+)'", trouve.group(1))
+    assert cote_web == [nom for nom, _ in JOURNEY], (
+        f"parcours divergent — API {[nom for nom, _ in JOURNEY]}, interface {cote_web}"
+    )
+
+
+def test_the_screen_reads_the_median_keys_the_api_actually_produces(client, seeded, auth):
+    """Même garde-fou pour les délais : une clé inventée afficherait
+    « donnée insuffisante » pour une étape pourtant mesurée."""
+    import re
+
+    trouve = re.search(
+        r"const DELAY_LABELS: Record<string, string> = \{(.*?)\n\}",
+        _page_performance(),
+        re.DOTALL,
+    )
+    assert trouve, "DELAY_LABELS introuvable dans la page"
+    cote_web = set(re.findall(r"^\s{2}([a-z_]+):", trouve.group(1), re.MULTILINE))
+
+    corps = client.get("/api/v1/cohorts?product_code=educore", headers=auth("lecteur")).json()
+    assert cote_web == set(corps["median_days"]), (
+        f"délais divergents — API {sorted(corps['median_days'])}, interface {sorted(cote_web)}"
+    )

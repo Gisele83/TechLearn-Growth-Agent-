@@ -202,12 +202,37 @@ Ce n'est pas le cas aujourd'hui.
 Aucune donnée sensible au sens de l'article 9 n'est collectée. Aucune donnée
 d'élève, de parent ou de personnel. Aucune donnée d'exploitation industrielle.
 
+### Une opposition arrête aussi le téléphone
+
+Le contrôle d'opposition portait sur l'envoi. Il ne portait pas sur les
+tâches que le système confie à une personne. Un rendez-vous manqué produisait
+« Reprogrammer la démonstration — X », assignée à un commercial, sans
+regarder si X venait d'écrire STOP.
+
+Le serveur n'envoyait rien. L'appel partait quand même. L'opposition était
+contournée par le seul canal qu'aucun garde-fou technique ne surveille.
+
+Le refus est désormais posé là où **toutes** les actions naissent, et non sur
+ce seul cas : une action de nature « relance », « appel », « démonstration »,
+« proposition » ou « renouvellement » est refusée dès lors que le contact
+figure sur la liste d'opposition — adresse exacte ou domaine. Le travail
+interne (compte rendu, clôture du dossier) reste possible : l'interdire
+enfermerait le dossier dans un état dont aucune action ne permet de sortir.
+
+Un rendez-vous manqué après opposition produit donc une action de clôture, et
+le fait reste compté : l'opposition change la suite, pas les faits.
+
+**Limite assumée.** Une action inscrite *avant* l'opposition reste ouverte.
+Elle a été décidée alors que rien ne s'y opposait ; son porteur doit
+l'annuler. C'est une des raisons pour lesquelles l'écran de suivi affiche les
+oppositions reçues.
+
 ### Droits des personnes
 
 | Droit | Mise en œuvre |
 |---|---|
 | Information | Mention dans chaque message ; un message sans moyen d'opposition est bloqué |
-| Opposition | Liste d'opposition, effet immédiat, en-têtes de désinscription en un clic |
+| Opposition | Liste d'opposition, effet immédiat, en-têtes de désinscription en un clic, **et refus des relances confiées à une personne** (voir ci-dessous) |
 | Accès | `GET /api/v1/prospects/{id}` restitue tout ce qui est détenu |
 | Rectification | `PATCH` sur la fiche |
 | Effacement | Suppression de la fiche ; l'opposition, elle, est conservée (sans quoi la personne serait recontactée) |

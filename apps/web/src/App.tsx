@@ -8,6 +8,7 @@ import { CampaignsPage } from '@/pages/Campaigns'
 import { DashboardPage } from '@/pages/Dashboard'
 import { IntegrationsPage } from '@/pages/Integrations'
 import { LoginPage } from '@/pages/Login'
+import { PerformancePage } from '@/pages/Performance'
 import { ProspectsPage } from '@/pages/Prospects'
 import { SuppressionsPage } from '@/pages/Suppressions'
 
@@ -38,6 +39,7 @@ export function App() {
           <NavLink to="/" end>
             Tableau de bord
           </NavLink>
+          <NavLink to="/performance">Performance commerciale</NavLink>
           <NavLink to="/campagnes">Campagnes</NavLink>
           <NavLink to="/prospects">Prospects</NavLink>
           <NavLink to="/validations">Validations</NavLink>
@@ -58,6 +60,7 @@ export function App() {
       <main className="main" id="contenu">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/performance" element={<PerformancePage />} />
           <Route path="/campagnes" element={<CampaignsPage />} />
           <Route path="/prospects" element={<ProspectsPage />} />
           <Route path="/validations" element={<ApprovalsPage />} />

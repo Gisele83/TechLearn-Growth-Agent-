@@ -191,6 +191,15 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | Aller et retour | `test_upgrade_downgrade_upgrade_is_stable` | ✅ |
 | Conformes aux modèles | `test_migration_matches_the_models` | ✅ |
 | Contraintes d'unicité présentes | `test_unique_constraints_are_present` | ✅ |
+| **0006 sur PostgreSQL 16 réel** : reprise des lignes existantes, retrait du défaut serveur, index, deux allers-retours | Cluster temporaire sur socket Unix, aucun port TCP, supprimé après essai | ✅ |
+
+La migration `0006` a une branche propre à PostgreSQL — le retrait de la
+valeur par défaut après la reprise — que SQLite n'exerce jamais. Elle a donc
+été éprouvée sur un vrai moteur : huit événements écrits **avant** la
+migration, puis vérification que `sent`, `send_blocked`, `delivered`,
+`bounced` et `opened` ressortent « constatés » et le reste « déclaré », que
+la colonne n'a plus de valeur par défaut, et que le schéma redescend et
+remonte deux fois de suite.
 
 ## Naturel des messages
 
@@ -213,13 +222,14 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 | Contrôle | Preuve | État |
 |---|---|---|
 | Compilation stricte | `tsc --noEmit` | ✅ |
-| Tests unitaires | 23 tests | ✅ |
-| Construction | 64 ko compressés | ✅ |
-| Rendu réel des sept écrans | Vérifié au navigateur sur l'API réelle | ✅ |
+| Tests unitaires | 57 tests (dont 30 pour « Performance commerciale ») | ✅ |
+| Construction | 67 ko compressés | ✅ |
+| Rendu réel des huit écrans | Vérifié au navigateur sur l'API réelle | ✅ |
 | Aucune erreur console | Vérifié sur toutes les pages | ✅ |
 | Responsive | Vérifié en 390 px | ✅ |
 | Pas de métrique factice | `test_ui.test.tsx` | ✅ |
-| Tests Playwright automatisés | — | ❌ Vérification manuelle seulement |
+| Captures reproductibles de l'écran de suivi | `scripts/demo-captures.sh` → `docs/captures/` | ✅ |
+| Tests Playwright automatisés du parcours complet | — | ❌ Vérification manuelle seulement |
 
 ## Expédition et opposition
 
@@ -342,7 +352,76 @@ lui-même reste humain**.
 | Les pertes se comptent par motif | `test_losses_are_counted_by_reason` | ✅ |
 | Les envois bloqués sont enfin affichés | `test_blocked_sends_are_surfaced_by_reason` | ✅ |
 | Les retards sont attribués | `test_overdue_actions_are_attributed` | ✅ |
+| Le filtre par campagne isole bien une campagne | `test_the_campaign_filter_isolates_one_campaign` | ✅ |
+| Une campagne inconnue est refusée, pas ignorée | `test_an_unknown_campaign_is_refused_rather_than_silently_ignored` | ✅ |
 | **Validation sur deux cohortes réelles** | — | ❌ **Non fait** — exige D2 et l'autorisation d'envoi |
+
+## Constaté ou déclaré
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Ce que le système fait lui-même est marqué constaté | `test_what_the_system_does_itself_is_recorded_as_observed` | ✅ |
+| Ce qu'une personne saisit est marqué déclaré | `test_a_stage_someone_types_in_is_recorded_as_declared` | ✅ |
+| La reprise de la migration 0006 suit ce que le code écrit | `test_the_migration_backfill_agrees_with_what_the_code_writes` | ✅ vérifié en désynchronisant |
+| Le rapport dit, par étape, ce qu'il a constaté | `test_the_report_says_how_many_of_each_stage_it_actually_saw` | ✅ |
+| Jamais plus de constatés que de comptés | `test_what_was_observed_never_exceeds_what_was_counted` | ✅ |
+| Un rapport majoritairement déclaré le dit | `test_a_report_made_mostly_of_declarations_says_so` | ✅ |
+| L'avertissement disparaît quand tout est constaté | `test_a_fully_observed_report_carries_no_declaration_warning` | ✅ |
+| Un rendez-vous manqué est compté à part | `test_a_missed_meeting_is_counted_apart_from_demos` | ✅ |
+| Aucun fait annexe n'entre dans l'entonnoir | `test_every_side_fact_is_kept_out_of_the_funnel` | ✅ |
+| L'écran lit les étapes que l'API produit | `test_the_screen_reads_the_stages_the_api_actually_produces` | ✅ vérifié en désynchronisant |
+| L'écran lit les délais que l'API produit | `test_the_screen_reads_the_median_keys_the_api_actually_produces` | ✅ vérifié en désynchronisant |
+
+## Opposition et relances humaines
+
+Une opposition arrêtait les envois. Elle n'arrêtait pas les tâches confiées
+à une personne : un rendez-vous manqué produisait « Reprogrammer la
+démonstration » pour un contact qui venait d'écrire STOP.
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Un rendez-vous manqué après opposition ne planifie pas de rappel | `test_a_missed_meeting_after_an_opposition_does_not_schedule_a_call_back` | ✅ corrigé |
+| Sans opposition, la reprogrammation reste proposée | `test_without_an_opposition_a_missed_meeting_still_asks_to_reschedule` | ✅ |
+| Le fait reste compté même après opposition | `test_a_missed_meeting_is_still_recorded_when_the_contact_opposed` | ✅ |
+| Aucune nature d'action de contact n'échappe au contrôle | `test_no_contact_action_can_be_scheduled_for_an_opposed_contact` | ✅ 5 natures |
+| Le travail interne reste possible | `test_internal_work_remains_possible_after_an_opposition` | ✅ |
+| Une opposition de domaine couvre ses adresses | `test_an_opposition_on_the_domain_stops_the_follow_up_too` | ✅ |
+| Une opposition sur l'autre produit ne bloque pas celui-ci | `test_an_opposition_on_the_other_product_does_not_block_this_one` | ✅ |
+| Sans adresse, rien n'a été refusé | `test_a_prospect_without_an_address_refused_nothing` | ✅ |
+| **Une action inscrite avant l'opposition reste ouverte** | `test_an_opposition_recorded_after_the_action_does_not_rewrite_it` | ⚠️ limite assumée, annulation manuelle |
+
+## Réidentification après purge
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Balayage de toutes les tables après purge | `test_after_the_purge_nothing_in_the_database_still_names_the_person` | ✅ |
+| Le nom ne survit nulle part | `test_the_persons_name_survives_nowhere_at_all` | ✅ |
+| Chaque survivance tolérée est motivée par écrit | `test_every_tolerated_survival_states_a_reason` | ✅ |
+| Une source perd son titre et le chemin de son URL | `test_a_source_keeps_its_origin_and_loses_its_path` | ✅ corrigé |
+| Une évaluation perd ses citations, garde son score | `test_an_assessment_keeps_its_score_and_loses_its_quotes` | ✅ corrigé |
+| Le `payload` d'un événement est réduit à une liste blanche | `test_an_event_payload_keeps_only_what_an_indicator_reads` | ✅ corrigé |
+| Le pointeur vers la fiche CRM est retiré | `test_the_pointer_to_the_crm_record_is_dropped` | ✅ corrigé |
+| Un brouillon perd son motif de blocage | `test_a_blocked_draft_loses_the_reason_it_was_blocked` | ✅ corrigé |
+| Les indicateurs passés restent inchangés | `test_the_indicators_are_unchanged_by_the_deeper_anonymization` | ✅ |
+| Une opposition bloque encore après la purge | `test_an_opposition_still_blocks_a_send_after_the_purge` | ✅ |
+
+## Écran « Performance commerciale »
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Une ligne par cohorte, la plus récente comprise | `donne une ligne à chaque cohorte` | ✅ |
+| Cohorte de moins de 30 jours signalée, pas masquée | `signale une cohorte de moins de 30 jours sans la masquer` | ✅ vérifié en la masquant |
+| Volume constaté distingué du volume saisi | `distingue un volume constaté d'un volume saisi à la main` | ✅ vérifié en les confondant |
+| Aucune moyenne cumulée | `n'affiche aucune moyenne cumulée` | ✅ |
+| Un tiret, jamais 0 %, sans dénominateur | `écrit un tiret, et non 0 %, quand la cohorte n'a aucun contact` | ✅ vérifié en forçant 0 |
+| Filtres produit, période, campagne transmis à l'API | `interroge l'API avec le produit, la période et la campagne choisis` | ✅ |
+| Changer de produit oublie la campagne | `oublie la campagne quand on change de produit` | ✅ |
+| Le filtre par cohorte ne relance pas la requête | `restreint l'affichage à une cohorte sans relancer la requête` | ✅ |
+| Aucun chiffre affiché quand l'API échoue | `n'affiche aucun chiffre quand l'API échoue` | ✅ |
+| Un refus d'accès se distingue d'une panne | `distingue un refus d'accès d'une panne` | ✅ |
+| État vide expliqué | `explique l'absence de cohorte au lieu d'afficher un tableau vide` | ✅ |
+| Les mises en garde de l'API sont reprises telles quelles | `reprend telles quelles les mises en garde de l'API` | ✅ |
+| **Restriction de la page aux seuls rôles de direction** | — | ❌ arbitrage ouvert : l'API l'ouvre à tout compte en lecture |
 
 ## Verdict
 

@@ -231,6 +231,43 @@ export interface GrowthReport {
   recommendations: string[]
 }
 
+/**
+ * Une cohorte de départ : les organisations contactées le même mois, et ce
+ * qu'elles sont devenues.
+ */
+export interface CohortRow {
+  /** Mois du premier envoi réel, au format `AAAA-MM`. */
+  cohort: string
+  counts: Record<string, number>
+  /** `null` quand la cohorte n'a aucun contact : absence de mesure, pas 0 %. */
+  conversion: Record<string, number | null>
+  /**
+   * Par étape, combien de ces prospects reposent sur un événement que le
+   * système a constaté lui-même, et non sur une saisie.
+   */
+  observed: Record<string, number>
+  /** Faux sous 30 jours : les conversions n'ont pas eu le temps de survenir. */
+  mature: boolean
+  note: string
+}
+
+export interface CohortReport {
+  product_code: string
+  campaign_slug: string
+  computed_at: string
+  cohorts: CohortRow[]
+  /** Totaux par origine : `observed` / `declared`. */
+  by_source: Record<string, number>
+  /** Faits comptés à côté de l'entonnoir : rendez-vous manqués, oppositions. */
+  side_facts: Record<string, number>
+  median_days: Record<string, number | null>
+  loss_reasons: Record<string, number>
+  blocked_by_reason: Record<string, number>
+  open_pipeline: Record<string, number>
+  overdue_by_owner: Array<{ owner_email: string; overdue: number }>
+  notes: string[]
+}
+
 export interface AuditEvent {
   id: string
   occurred_at: string

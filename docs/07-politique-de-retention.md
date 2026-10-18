@@ -21,8 +21,59 @@ effacés, sa ligne et son historique subsistent.
 | Nom de l'organisation, secteur, pays, effectif | Nom du contact |
 | Étape commerciale, score, statut de vérification | Adresse email |
 | Événements de prospection (envois, réponses, démos) | Téléphone |
-| URL et date des sources — preuve de provenance | Fonction du contact |
-| Statut et horodatage des messages | Extrait des sources, corps des messages |
+| Origine et date des sources — preuve de provenance | Fonction du contact |
+| Statut et horodatage des messages | Extrait **et titre** des sources, corps des messages |
+| Points et statut de chaque critère d'évaluation | Raisonnement et citations de l'évaluation |
+| Code de motif d'un envoi bloqué | Texte libre du motif, et chemin des URL |
+
+## Ce qui ramène à une personne sans la nommer
+
+Effacer le nom et l'adresse ne suffit pas. Un balayage de toute la base après
+purge — `test_after_the_purge_nothing_in_the_database_still_names_the_person`
+— a montré quatre champs qui redonnaient la personne sans jamais la nommer :
+
+* **le titre d'une source**, très souvent « Marie Dupont, directrice » ;
+* **le chemin d'une URL**, régulièrement `/equipe/marie-dupont`. L'URL est
+  désormais réduite à son origine : elle prouve toujours d'où venait le
+  prospect, sans plus porter le nom ;
+* **le raisonnement d'une évaluation**, écrit par le modèle à partir des
+  sources, donc reprenant les phrases où la personne est nommée. Les points
+  et le statut de chaque critère restent : un score qu'on ne peut plus
+  recalculer n'est plus contestable, et la personne évaluée y perd ;
+* **le `payload` d'un événement**, dictionnaire libre. Il est réduit à une
+  **liste blanche** de clés — des codes, des identifiants internes, des
+  booléens. Une liste noire n'aurait protégé que des clés auxquelles on avait
+  pensé.
+
+S'y ajoute **le pointeur vers la fiche CRM**, retiré lui aussi : le CRM garde
+sa fiche, ce n'est pas à Growth Agent de la supprimer, mais tant que le
+pointeur reste, la ligne anonymisée y mène d'un clic. L'identifiant du message
+chez le fournisseur d'envoi est écarté pour la même raison — il permet de
+retrouver l'adresse dans les journaux de celui-ci.
+
+### Ce qui survit, et pourquoi
+
+| Donnée | Pourquoi elle reste |
+|---|---|
+| Domaine, site, clé de dédoublonnage | Identifiants d'organisation, pas de personne. Les retirer ferait disparaître l'organisation des indicateurs passés et rouvrirait la porte aux doublons |
+| Origine d'une URL de source | Prouve la provenance sans porter le chemin qui nommait quelqu'un |
+| `unsubscribe_tokens.email` | Pour que l'opposition reste enregistrable si la personne clique après la purge. Une opposition prime sur l'effacement |
+| `suppression_entries.normalized_value` | L'adresse d'une personne qui a demandé à ne plus être contactée. L'effacer reviendrait à la recontacter |
+
+Cette liste est tenue dans le test, pas seulement ici : y ajouter une ligne
+exige d'écrire la raison, ce qui est exactement la discussion qu'on veut
+provoquer.
+
+**Risque résiduel assumé.** Le domaine survit, et les adresses
+professionnelles suivent souvent une convention (`direction@<domaine>`). Une
+adresse plausible reste donc reconstructible. La protection n'est pas
+l'effacement — qui casserait les indicateurs — mais la liste d'opposition,
+qui, elle, est consultée avant chaque envoi.
+
+**Arbitrage ouvert.** Faut-il borner dans le temps la conservation de
+l'adresse dans `unsubscribe_tokens` ? Aujourd'hui elle est illimitée. La
+borner reviendrait à fermer, passé un délai, la possibilité de s'opposer en
+cliquant sur un lien ancien. Décision à prendre, non prise.
 
 Un prospect n'ayant **aucun** historique commercial n'a rien à préserver : la
 question ne se pose pas, puisque l'anonymisation suffit également et laisse

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 
 from growth_agent.api.deps import SessionDep, require, resolve_product
+from growth_agent.models.catalog import Campaign
 from growth_agent.models.enums import NextActionStatus, OpportunityStage
 from growth_agent.models.pipeline import NextAction, Opportunity
 from growth_agent.models.prospect import ProspectCandidate
@@ -254,6 +255,7 @@ def workload(
 def cohorts(
     session: SessionDep,
     product_code: str,
+    campaign_slug: str | None = None,
     months: int = Query(default=6, ge=1, le=36),
     include_simulated: bool = False,
     _: CurrentUser = Depends(require(CAN_READ)),
@@ -265,10 +267,21 @@ def cohorts(
     et ne dit pas si la conversion s'améliore.
     """
     product = resolve_product(session, product_code)
+    campaign = None
+    if campaign_slug:
+        campaign = session.execute(
+            select(Campaign).where(
+                Campaign.product_id == product.id, Campaign.slug == campaign_slug
+            )
+        ).scalar_one_or_none()
+        if campaign is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campagne inconnue.")
     return compute_cohorts(
         session,
         product_id=product.id,
         product_code=product.code,
+        campaign_id=campaign.id if campaign else None,
+        campaign_slug=campaign.slug if campaign else "",
         months=months,
         include_simulated=include_simulated,
     ).as_dict()

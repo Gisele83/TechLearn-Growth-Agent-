@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from growth_agent.models.catalog import Product
 from growth_agent.models.enums import (
+    EventSource,
     LossReason,
     NextActionKind,
     NextActionStatus,
@@ -38,6 +39,26 @@ from growth_agent.models.pipeline import NextAction, Opportunity
 from growth_agent.models.prospect import ProspectCandidate
 from growth_agent.services.audit import record_audit
 from growth_agent.services.outreach import record_outreach_event
+from growth_agent.services.suppression import check_suppression
+
+#: Natures d'action qui s'adressent au prospect. Le contrôle d'opposition
+#: porte sur elles, et sur elles seules : ranger un dossier ou écrire un
+#: compte rendu ne dérange personne.
+#:
+#: Le blocage à l'envoi ne suffisait pas. Un rendez-vous manqué produisait
+#: « Reprogrammer la démonstration », confié à une personne, pour un contact
+#: qui venait d'écrire STOP. Le serveur n'envoyait rien ; l'appel téléphonique
+#: partait quand même, et l'opposition était contournée par le seul canal
+#: qu'aucun garde-fou technique ne surveille.
+CONTACT_KINDS: frozenset[str] = frozenset(
+    {
+        NextActionKind.FOLLOW_UP,
+        NextActionKind.CALL,
+        NextActionKind.DEMO,
+        NextActionKind.PROPOSAL,
+        NextActionKind.RENEWAL,
+    }
+)
 
 #: Étapes depuis lesquelles un dossier peut encore avancer.
 OPEN_STAGES: frozenset[str] = frozenset(
@@ -183,6 +204,9 @@ def advance(
             occurred_at=moment,
             actor=actor,
             payload={"opportunity_id": str(opportunity.id), "loss_reason": loss_reason},
+            # Une étape franchie est toujours saisie par quelqu'un : le
+            # système ne constate ni une démonstration ni une signature.
+            event_source=EventSource.DECLARED,
             # Un passage d'étape ne se produit qu'une fois par dossier :
             # rejouer l'appel ne doit pas gonfler les indicateurs.
             idempotency_key=f"stage:{opportunity.id}:{stage}",
@@ -237,15 +261,50 @@ def record_demo(
             note=report.summary,
             now=moment,
         )
-    titre = report.next_step or (
-        f"Suite de la démonstration — {opportunity.organization_name}"
-        if report.held
-        else f"Reprogrammer la démonstration — {opportunity.organization_name}"
+    elif opportunity.prospect_id:
+        # Un créneau perdu n'est ni une démonstration tenue, ni une absence
+        # de démonstration. Sans événement, il disparaît des chiffres, et on
+        # ne saura jamais combien de rendez-vous ne se tiennent pas.
+        record_outreach_event(
+            session,
+            product_id=opportunity.product_id,
+            campaign_id=opportunity.campaign_id,
+            prospect_id=opportunity.prospect_id,
+            event_type=OutreachEventType.DEMO_NO_SHOW,
+            occurred_at=moment,
+            actor=actor,
+            payload={"opportunity_id": str(opportunity.id)},
+            event_source=EventSource.DECLARED,
+        )
+    # Un rendez-vous manqué appelle une suite, mais laquelle dépend de ce que
+    # le contact a dit entre-temps. S'il s'est opposé, la seule suite
+    # admissible est de ranger le dossier : reprogrammer reviendrait à le
+    # rappeler, et le téléphone ne connaît pas la liste d'opposition.
+    prospect = (
+        session.get(ProspectCandidate, opportunity.prospect_id) if opportunity.prospect_id else None
     )
+    verdict = check_suppression(
+        session,
+        email=prospect.contact_email if prospect else None,
+        product_id=opportunity.product_id,
+        now=moment,
+    )
+    oppose = verdict.suppressed and verdict.reason != "invalid_recipient"
+
+    if oppose:
+        kind = NextActionKind.CLOSE_OUT
+        titre = f"Clôturer le dossier — opposition enregistrée ({opportunity.organization_name})"
+    else:
+        kind = NextActionKind.PROPOSAL if report.held else NextActionKind.DEMO
+        titre = report.next_step or (
+            f"Suite de la démonstration — {opportunity.organization_name}"
+            if report.held
+            else f"Reprogrammer la démonstration — {opportunity.organization_name}"
+        )
     action = schedule_action(
         session,
         opportunity=opportunity,
-        kind=NextActionKind.PROPOSAL if report.held else NextActionKind.DEMO,
+        kind=kind,
         title=titre,
         owner_email=opportunity.owner_email,
         due_at=moment + timedelta(days=max(1, follow_up_in_days)),
@@ -262,6 +321,7 @@ def record_demo(
         object_id=opportunity.id,
         metadata={
             "held": report.held,
+            "opposition": oppose,
             # Les objections sont des catégories, pas des verbatims : le
             # journal d'audit ne doit porter aucun propos de personne.
             "objections": list(report.objections),
@@ -297,10 +357,28 @@ def schedule_action(
             "Une action sans porteur n'est faite par personne : indiquer un responsable."
         )
 
+    resolved_prospect = prospect_id or (opportunity.prospect_id if opportunity else None)
+    if kind in CONTACT_KINDS and resolved_prospect is not None:
+        prospect = session.get(ProspectCandidate, resolved_prospect)
+        verdict = check_suppression(
+            session,
+            email=prospect.contact_email if prospect else None,
+            product_id=resolved_product,
+            now=moment,
+        )
+        # Seule une opposition arrête l'action. Un prospect sans adresse n'a
+        # rien refusé : l'appeler reste possible, et le lui interdire ici
+        # bloquerait un travail légitime au nom d'un refus inexistant.
+        if verdict.suppressed and verdict.reason != "invalid_recipient":
+            raise PipelineError(
+                "Opposition enregistrée pour ce contact : aucune relance ne peut "
+                "lui être adressée, y compris par téléphone. Clôturer le dossier."
+            )
+
     action = NextAction(
         opportunity_id=opportunity.id if opportunity else None,
         product_id=resolved_product,
-        prospect_id=prospect_id or (opportunity.prospect_id if opportunity else None),
+        prospect_id=resolved_prospect,
         kind=kind,
         title=title.strip(),
         owner_email=owner_email.strip().lower(),

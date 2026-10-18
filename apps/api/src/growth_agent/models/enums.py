@@ -94,6 +94,10 @@ class NextActionKind(StrEnum):
     DEMO_REPORT = "demo_report"
     PROPOSAL = "proposal"
     RENEWAL = "renewal"
+    #: Travail interne de clôture : ranger le dossier, prévenir le CRM.
+    #: Ne s'adresse jamais au prospect, et reste donc permis après une
+    #: opposition — c'est même la seule suite admissible.
+    CLOSE_OUT = "close_out"
 
 
 class NextActionStatus(StrEnum):
@@ -157,6 +161,27 @@ class OutreachChannel(StrEnum):
     MEETING = "meeting"
 
 
+class EventSource(StrEnum):
+    """D'où vient la certitude qu'un événement a eu lieu.
+
+    La distinction compte pour lire un tableau de bord. « 12 démonstrations
+    tenues » ne vaut pas la même chose selon que le système les a constatées
+    ou qu'une personne les a saisies : la seconde dépend de la rigueur de
+    quelqu'un, et son absence ne prouve rien.
+
+    Tant qu'aucune intégration de réception n'existe, une réponse de prospect
+    est nécessairement **déclarée** — personne ne l'a vue arriver.
+    """
+
+    #: Le système l'a constaté lui-même : un fournisseur a accepté un
+    #: message, un garde-fou a bloqué un envoi, un connecteur produit a
+    #: renvoyé un fait.
+    OBSERVED = "observed"
+    #: Une personne l'a saisi. Vrai jusqu'à preuve du contraire, mais sa
+    #: présence dépend d'un geste humain, et son absence ne prouve rien.
+    DECLARED = "declared"
+
+
 class OutreachEventType(StrEnum):
     DRAFTED = "drafted"
     APPROVED = "approved"
@@ -170,6 +195,9 @@ class OutreachEventType(StrEnum):
     OPTED_OUT = "opted_out"
     DEMO_SCHEDULED = "demo_scheduled"
     DEMO_HELD = "demo_held"
+    #: Rendez-vous manqué. Compté à part : un créneau perdu n'est ni une
+    #: démonstration tenue, ni une absence de démonstration.
+    DEMO_NO_SHOW = "demo_no_show"
     PILOT_STARTED = "pilot_started"
     DEAL_WON = "deal_won"
     DEAL_LOST = "deal_lost"

@@ -30,20 +30,29 @@ from sqlalchemy.orm import Session
 
 from growth_agent.config import Settings, get_settings
 from growth_agent.models.ops import AuditEvent, ProductPilotEvent
-from growth_agent.models.outreach import MessageDraft
+from growth_agent.models.outreach import MessageDraft, OutreachEvent
 from growth_agent.models.pipeline import NextAction, Opportunity
-from growth_agent.models.prospect import ProspectCandidate, ProspectSource
+from growth_agent.models.prospect import (
+    CRMMapping,
+    ProspectCandidate,
+    ProspectSource,
+    QualificationAssessment,
+)
 from growth_agent.retention.policy import (
     ANONYMIZED_ACTION_FIELDS,
+    ANONYMIZED_ASSESSMENT_FIELDS,
     ANONYMIZED_DRAFT_FIELDS,
     ANONYMIZED_OPPORTUNITY_FIELDS,
     ANONYMIZED_PROSPECT_FIELDS,
     ANONYMIZED_SOURCE_FIELDS,
+    KEPT_CRITERION_KEYS,
+    KEPT_EVENT_PAYLOAD_KEYS,
     PROTECTED_TABLES,
     RetentionPolicy,
     RetentionRule,
     build_policy,
     default_now,
+    strip_url_path,
 )
 from growth_agent.services.audit import record_audit
 
@@ -411,6 +420,73 @@ class PurgeService:
         self._session.execute(
             update(NextAction).where(NextAction.prospect_id.in_(ids)).values(**action_values)
         )
+        self._strip_source_paths(ids)
+        self._anonymize_assessments(ids)
+        self._narrow_event_payloads(ids)
+        self._drop_crm_pointers(ids)
+
+    # --- Ce qui reste identifiant après l'effacement des champs évidents ---
+    #
+    # Effacer le nom et l'adresse ne suffit pas : ce qui reste doit aussi
+    # cesser d'y ramener. Un chemin d'URL, une citation dans une évaluation,
+    # une clé de `payload`, un identifiant de contact dans le CRM — chacun
+    # redonne la personne qu'on vient d'effacer, sans jamais la nommer.
+    #
+    # Ces quatre passes sont lentes à côté d'un `UPDATE` d'ensemble : elles
+    # relisent ligne à ligne. Elles portent sur un lot borné par
+    # `purge_batch_size`, et sur des données qu'aucune requête d'affichage ne
+    # lit en boucle.
+
+    def _strip_source_paths(self, ids: list[uuid.UUID]) -> None:
+        sources = self._session.execute(
+            select(ProspectSource).where(ProspectSource.prospect_id.in_(ids))
+        ).scalars()
+        for source in sources:
+            source.url = strip_url_path(source.url)
+
+    def _anonymize_assessments(self, ids: list[uuid.UUID]) -> None:
+        values = {k: (v() if callable(v) else v) for k, v in ANONYMIZED_ASSESSMENT_FIELDS.items()}
+        self._session.execute(
+            update(QualificationAssessment)
+            .where(QualificationAssessment.prospect_id.in_(ids))
+            .values(**values)
+        )
+        assessments = self._session.execute(
+            select(QualificationAssessment).where(QualificationAssessment.prospect_id.in_(ids))
+        ).scalars()
+        for assessment in assessments:
+            assessment.criteria = [
+                {key: value for key, value in criterion.items() if key in KEPT_CRITERION_KEYS}
+                for criterion in (assessment.criteria or [])
+                if isinstance(criterion, dict)
+            ]
+
+    def _narrow_event_payloads(self, ids: list[uuid.UUID]) -> None:
+        events = self._session.execute(
+            select(OutreachEvent).where(OutreachEvent.prospect_id.in_(ids))
+        ).scalars()
+        for event in events:
+            payload = event.payload or {}
+            retenu = {k: v for k, v in payload.items() if k in KEPT_EVENT_PAYLOAD_KEYS}
+            if retenu != payload:
+                event.payload = retenu
+
+    def _drop_crm_pointers(self, ids: list[uuid.UUID]) -> None:
+        """Le lien vers la fiche CRM est retiré, la fiche distante ne l'est pas.
+
+        Growth Agent n'est pas maître des données de Maintrix, d'EduCore ni du
+        CRM : il ne supprime rien chez eux. Mais tant qu'il garde le pointeur,
+        sa propre ligne anonymisée désigne encore la personne d'un clic.
+
+        La correspondance servait aussi de mémoire d'idempotence. Elle ne perd
+        rien : un prospect redécouvert après anonymisation est une nouvelle
+        ligne, avec une nouvelle clé.
+        """
+        mappings = self._session.execute(
+            select(CRMMapping).where(CRMMapping.local_id.in_(ids))
+        ).scalars()
+        for mapping in mappings:
+            self._session.delete(mapping)
 
     def _apply_drafts(self, moment: datetime, budget: int, on_batch) -> int:
         """Efface le contenu des brouillons anciens, en conservant la ligne."""

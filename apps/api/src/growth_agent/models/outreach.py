@@ -21,6 +21,7 @@ from growth_agent.db.types import GUID, JSONDict, UTCDateTime
 from growth_agent.models.enums import (
     ApprovalDecision,
     DraftStatus,
+    EventSource,
     OutreachChannel,
     SuppressionScope,
 )
@@ -142,6 +143,7 @@ class OutreachEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         # Les indicateurs ne comptent que le réel : l'index porte donc sur le
         # couple qui sert au filtrage.
         Index("ix_event_real", "product_id", "is_simulated", "delivery_state"),
+        Index("ix_event_source", "product_id", "event_source", "occurred_at"),
         UniqueConstraint("idempotency_key", name="uq_event_idempotency"),
     )
 
@@ -168,6 +170,13 @@ class OutreachEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     #: Vrai lorsqu'aucun message n'a quitté la machine. Une colonne, et non un
     #: champ de la charge utile : les indicateurs doivent pouvoir filtrer
     #: dessus, et une répétition ne doit jamais être comptée comme un envoi.
+    #: Constaté par le système, ou saisi par une personne. Voir
+    #: `EventSource` : « 12 démonstrations » ne vaut pas la même chose selon
+    #: l'origine, et un tableau de bord qui mélange les deux ment par
+    #: omission.
+    event_source: Mapped[str] = mapped_column(
+        String(16), default=EventSource.DECLARED, nullable=False
+    )
     is_simulated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     #: Renseigné pour les événements d'envoi : reserved, sent, failed, uncertain.

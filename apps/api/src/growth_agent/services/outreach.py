@@ -38,6 +38,7 @@ from growth_agent.models.enums import (
     SENT_STATUSES,
     DeliveryState,
     DraftStatus,
+    EventSource,
     OutreachEventType,
 )
 from growth_agent.models.outreach import MessageDraft, OutreachEvent
@@ -427,6 +428,7 @@ def _record_event(
     idempotency_key: str | None = None,
     is_simulated: bool = False,
     delivery_state: str | None = None,
+    event_source: str = EventSource.OBSERVED,
 ) -> OutreachEvent:
     event = OutreachEvent(
         product_id=draft.product_id,
@@ -441,6 +443,7 @@ def _record_event(
         idempotency_key=idempotency_key,
         is_simulated=is_simulated,
         delivery_state=delivery_state,
+        event_source=event_source,
     )
     session.add(event)
     session.flush()
@@ -460,6 +463,7 @@ def record_outreach_event(
     channel: str = "email",
     payload: dict | None = None,
     idempotency_key: str | None = None,
+    event_source: str = EventSource.DECLARED,
 ) -> OutreachEvent:
     """Enregistre un événement de funnel (réponse, démo, pilote, perte…).
 
@@ -484,6 +488,7 @@ def record_outreach_event(
         actor=actor,
         payload=payload or {},
         idempotency_key=idempotency_key,
+        event_source=event_source,
     )
     session.add(event)
     session.flush()

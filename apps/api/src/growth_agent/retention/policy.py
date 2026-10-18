@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit, urlunsplit
 
 from growth_agent.config import Settings
 
@@ -157,6 +158,10 @@ ANONYMIZED_DRAFT_FIELDS: dict[str, object] = {
     "subject": "[anonymisé]",
     "body": "[anonymisé]",
     "variables_used": dict,
+    # Le motif de blocage est rédigé par le service d'envoi et cite le
+    # contrôle qui a refusé. Rien n'empêche un motif futur d'y recopier
+    # l'adresse : effacé, il ne peut plus en porter.
+    "blocked_reason": "[anonymisé]",
 }
 
 #: Sur un dossier commercial, les notes sont écrites à la main et racontent
@@ -176,13 +181,75 @@ ANONYMIZED_ACTION_FIELDS: dict[str, object] = {
     "payload": dict,
 }
 
-#: Sur une source, l'extrait peut citer une personne. L'URL et la date sont
-#: conservées : ce sont elles qui prouvent la provenance, et leur disparition
-#: rendrait impossible de justifier a posteriori pourquoi ce prospect avait
-#: été retenu.
+#: Sur une source, l'extrait et le titre peuvent citer une personne — un
+#: titre de page est très souvent « Marie Dupont, directrice ». La date et
+#: l'origine de l'URL sont conservées : ce sont elles qui prouvent la
+#: provenance, et leur disparition rendrait impossible de justifier a
+#: posteriori pourquoi ce prospect avait été retenu.
+#:
+#: Le chemin de l'URL, lui, est retiré par `strip_url_path` : un chemin dit
+#: régulièrement `/equipe/marie-dupont`, et conserver ce chemin reviendrait à
+#: conserver le nom qu'on vient d'effacer du champ voisin.
 ANONYMIZED_SOURCE_FIELDS: dict[str, object] = {
     "excerpt": "[anonymisé]",
+    "title": "[anonymisé]",
 }
+
+#: Sur une évaluation, le raisonnement et les preuves citées sont écrits par
+#: le modèle à partir des sources : ils reprennent donc les phrases où la
+#: personne est nommée. Les points, le maximum et le statut de vérification
+#: restent : sans eux le score cesse d'être recalculable, et un score qu'on
+#: ne peut plus recalculer n'est plus contestable.
+ANONYMIZED_ASSESSMENT_FIELDS: dict[str, object] = {
+    "rationale": "[anonymisé]",
+    "unknowns": list,
+}
+
+#: Dans un critère, ce qui est gardé. Tout le reste — `evidence`, `comment` —
+#: est du texte libre tiré des sources.
+KEPT_CRITERION_KEYS: frozenset[str] = frozenset({"key", "label", "points", "max_points", "status"})
+
+#: Clés de `payload` conservées sur les événements d'un prospect anonymisé.
+#:
+#: Liste blanche et non liste noire, volontairement. Le `payload` est un
+#: dictionnaire libre : une liste noire ne protège que des clés qu'on a
+#: pensé à y mettre, et le jour où un appelant y écrit `recipient`, personne
+#: ne s'en aperçoit. Ces clés-ci sont des codes, des identifiants internes et
+#: des booléens — aucune ne porte de texte rédigé.
+#:
+#: `message_id` n'y est pas : c'est l'identifiant du message chez le
+#: fournisseur d'envoi, et il permet de retrouver l'adresse dans les journaux
+#: de celui-ci. Le conserver reviendrait à garder un lien vers la donnée
+#: qu'on vient d'effacer.
+KEPT_EVENT_PAYLOAD_KEYS: frozenset[str] = frozenset(
+    {
+        "reason_code",
+        "provider",
+        "error_type",
+        "simulated",
+        "opportunity_id",
+        "loss_reason",
+        "stage",
+        "due_at",
+        "intent",
+        "confidence",
+        "requires_human",
+    }
+)
+
+
+def strip_url_path(url: str) -> str:
+    """Réduit une URL à son origine : « https://site.example.org ».
+
+    Une URL vide ou illisible est renvoyée telle quelle plutôt que remplacée :
+    inventer une valeur rendrait la provenance fausse au lieu de l'effacer.
+    """
+    if not url:
+        return url
+    parsed = urlsplit(url)
+    if not parsed.scheme or not parsed.netloc:
+        return "[anonymisé]"
+    return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
 
 
 def default_now() -> datetime:

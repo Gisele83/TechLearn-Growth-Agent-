@@ -186,7 +186,7 @@ export function ApprovalsPage() {
                 </>
               ) : null}
 
-              {draft?.status === 'approved' && can('commercial') ? (
+              {draft?.status === 'approved' && can('operateur') ? (
                 <div style={{ marginTop: 12 }}>
                   <button onClick={() => send(draft.id)} disabled={busy === draft.id}>
                     Envoyer

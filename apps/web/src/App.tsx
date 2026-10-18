@@ -14,6 +14,7 @@ import { SuppressionsPage } from '@/pages/Suppressions'
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administration',
   commercial: 'Commercial',
+  operateur: 'Opérations',
   lecteur: 'Lecture seule',
 }
 

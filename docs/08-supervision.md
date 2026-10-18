@@ -162,7 +162,7 @@ pas une fonctionnalité.
 |---|---|
 | **Responsable** | Merveille Nguetse |
 | **Fréquence** | chaque jour ouvré |
-| **Accès requis** | compte Growth Agent, rôle **commercial** — un compte lecteur ne permet ni de reporter une réponse ni de déclarer un relevé |
+| **Accès requis** | compte Growth Agent, rôle **`operateur`** — il permet de reporter une réponse et de déclarer un relevé, **sans** donner le droit d'approuver un message. Un compte `lecteur` ne permettrait ni l'un ni l'autre |
 | **Suppléance** | **à désigner** — voir « Suppléance et reprise » |
 | **Nature du relevé déclaré** | une déclaration nominative, **pas une preuve** de consultation |
 

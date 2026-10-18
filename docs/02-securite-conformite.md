@@ -139,12 +139,35 @@ industrielle dans le même outil est une rupture de confidentialité contractuel
 
 ### M6 — Élévation de privilèges
 
-**Ce qui est en place.** Trois rôles hiérarchisés, contrôle centralisé, et —
+**Ce qui est en place.** Quatre rôles hiérarchisés, contrôle centralisé, et —
 point important — **le rôle fait foi en base, pas dans le jeton**. Une
 rétrogradation prend effet à la requête suivante, sans attendre l'expiration
 du jeton. Le retrait d'une opposition est réservé aux administrateurs.
 
-**Tests.** `test_api_rbac.py` (26 tests).
+| Rôle | Peut | Ne peut pas |
+|---|---|---|
+| `lecteur` | consulter | écrire |
+| `operateur` | produire, expédier un message approuvé, relever les réponses, enregistrer une opposition | **approuver** |
+| `commercial` | tout cela, **et approuver** | administrer |
+| `admin` | administrer la configuration et les oppositions | — |
+
+**Pourquoi `operateur` existe.** Produire n'est pas valider. La personne qui
+relève la boîte de réponse doit pouvoir reporter une opposition, donc écrire
+dans le système. Tant que le seul rôle capable de le faire était
+`commercial`, elle recevait du même coup le droit d'approuver les messages
+des autres — c'est-à-dire exactement la décision qu'un second regard est
+censé couvrir. Le palier referme cet écart.
+
+**Risque résiduel.** `operateur` permet encore d'expédier un message **déjà
+approuvé par quelqu'un d'autre**. C'est voulu : la règle des deux paires
+d'yeux porte sur la validation, pas sur le geste d'envoi, et elle reste
+intacte. Un cloisonnement plus fin — « relever les réponses sans pouvoir
+expédier » — demanderait de sortir du modèle hiérarchique pour des
+permissions indépendantes.
+
+**Tests.** `test_api_rbac.py` (33 tests), dont
+`test_the_role_ladder_separates_producing_from_approving` qui vérifie la
+matrice complète, et `test_an_operator_cannot_approve_a_message`.
 
 ### M7 — Un fournisseur externe tombe ou ment
 

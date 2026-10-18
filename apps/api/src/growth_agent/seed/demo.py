@@ -44,6 +44,9 @@ DEMO_USERS: tuple[tuple[str, str, str, str], ...] = (
     ("admin@growth.example.org", "Administratrice démo", Role.ADMIN, "DemoAdmin!2026"),
     ("commercial@growth.example.org", "Commercial démo", Role.COMMERCIAL, "DemoCommercial!2026"),
     ("approbateur@growth.example.org", "Approbateur démo", Role.COMMERCIAL, "DemoApprobateur!2026"),
+    # Le profil de la personne qui relève la boîte de réponse : elle reporte
+    # les oppositions, elle n'approuve pas les messages.
+    ("operateur@growth.example.org", "Opératrice démo", Role.OPERATEUR, "DemoOperateur!2026"),
     ("lecteur@growth.example.org", "Lecteur démo", Role.LECTEUR, "DemoLecteur!2026"),
 )
 

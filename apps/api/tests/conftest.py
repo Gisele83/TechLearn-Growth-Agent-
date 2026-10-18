@@ -234,6 +234,7 @@ def auth(client):
     accounts = {
         "admin": ("admin@growth.example.org", "DemoAdmin!2026"),
         "commercial": ("commercial@growth.example.org", "DemoCommercial!2026"),
+        "operateur": ("operateur@growth.example.org", "DemoOperateur!2026"),
         "approbateur": ("approbateur@growth.example.org", "DemoApprobateur!2026"),
         "lecteur": ("lecteur@growth.example.org", "DemoLecteur!2026"),
     }

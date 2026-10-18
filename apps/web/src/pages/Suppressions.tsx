@@ -74,7 +74,7 @@ export function SuppressionsPage() {
       {error ? <Banner tone="danger">{error}</Banner> : null}
       {notice ? <Banner tone="ok">{notice}</Banner> : null}
 
-      {can('commercial') ? (
+      {can('operateur') ? (
         <form className="card" onSubmit={add}>
           <h3 style={{ marginTop: 0 }}>Ajouter une opposition</h3>
           <div className="toolbar" style={{ marginBottom: 0 }}>

@@ -209,12 +209,10 @@ n'empêche pas d'approuver celles des autres.
 `lecteur` ne convient pas : il ne permet ni de reporter une réponse, ni de
 déclarer un relevé — et sans cela, le relevé ne laisse aucune trace.
 
-Deux issues, et c'est votre décision :
-
-* **accepter** le rôle `commercial` tel quel, en notant l'écart ;
-* **séparer `CAN_APPROVE` de `CAN_OPERATE`** par un rôle intermédiaire. Ce
-  n'est pas une grosse modification, mais elle touche le contrôle d'accès de
-  toute l'application, et je ne l'engage pas sans votre accord.
+**Réserve levée le 18 octobre 2026.** Vous avez retenu la séparation. Un
+palier `operateur` a été introduit entre `lecteur` et `commercial` : il porte
+`CAN_OPERATE` sans `CAN_APPROVE`. Merveille Nguetse prend ce rôle. Voir
+`docs/audits/2026-10-18-role-operateur.md`.
 
 ---
 

@@ -92,6 +92,172 @@ def test_reader_cannot_write(client, seeded, auth):
     )
 
 
+# --- Le palier « operateur » : produire sans valider ----------------------
+
+
+def _pending_approval(session_factory, requested_by="operateur@growth.example.org") -> str:
+    """Un brouillon et sa demande de validation, posés directement en base.
+
+    Le parcours de rédaction a ses propres épreuves ; ici on teste qui a le
+    droit de décider, pas comment le message a été écrit.
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import select
+
+    from growth_agent.models.catalog import Product
+    from growth_agent.models.enums import ApprovalSubject
+    from growth_agent.models.outreach import MessageDraft
+    from growth_agent.models.prospect import ProspectCandidate
+    from growth_agent.services.approvals import request_approval
+
+    session = session_factory()
+    try:
+        produit = session.execute(select(Product).where(Product.code == "educore")).scalar_one()
+        prospect = ProspectCandidate(
+            product_id=produit.id,
+            organization_name="Lycée de test",
+            dedupe_key=f"domain:{_uuid.uuid4().hex[:8]}.example.org",
+            domain=f"{_uuid.uuid4().hex[:8]}.example.org",
+            country_code="CM",
+            sector="Enseignement secondaire",
+            contact_full_name="Contact",
+            contact_role="Directeur",
+            contact_email=f"{_uuid.uuid4().hex[:6]}@exemple.example.org",
+        )
+        session.add(prospect)
+        session.flush()
+        draft = MessageDraft(
+            product_id=produit.id,
+            prospect_id=prospect.id,
+            recipient_email=prospect.contact_email,
+            subject="Objet",
+            body="Bonjour. Le lien de désinscription vous retire de nos envois.",
+        )
+        session.add(draft)
+        session.flush()
+        approbation = request_approval(
+            session,
+            subject_type=ApprovalSubject.MESSAGE,
+            subject_id=draft.id,
+            requested_by=requested_by,
+            summary="Message",
+            draft=draft,
+        )
+        session.commit()
+        return str(approbation.id)
+    finally:
+        session.close()
+
+
+def test_the_role_ladder_separates_producing_from_approving():
+    """La matrice complète, en un coup d'œil. C'est le test qu'on relit quand
+    on se demande ce qu'un rôle peut faire."""
+    from growth_agent.models.enums import Role
+    from growth_agent.security.rbac import (
+        CAN_ADMINISTER,
+        CAN_APPROVE,
+        CAN_OPERATE,
+        CAN_READ,
+        has_role,
+    )
+
+    attendu = {
+        Role.LECTEUR: (True, False, False, False),
+        Role.OPERATEUR: (True, True, False, False),
+        Role.COMMERCIAL: (True, True, True, False),
+        Role.ADMIN: (True, True, True, True),
+    }
+    for role, droits in attendu.items():
+        obtenu = tuple(
+            has_role(role, permission)
+            for permission in (CAN_READ, CAN_OPERATE, CAN_APPROVE, CAN_ADMINISTER)
+        )
+        assert obtenu == droits, f"{role} : {obtenu} au lieu de {droits}"
+
+
+def test_an_operator_can_report_a_reply_and_declare_a_relay(client, seeded, auth, session_factory):
+    """Le travail de la personne qui relève la boîte : reporter une réponse
+    et déclarer un relevé. Les deux exigent d'écrire dans le système."""
+    from growth_agent.models.prospect import ProspectCandidate
+
+    headers = auth("operateur")
+    assert client.post("/api/v1/replies/relay-check", headers=headers).status_code == 201
+
+    _pending_approval(session_factory)
+    session = session_factory()
+    try:
+        identifiant = str(session.query(ProspectCandidate).first().id)
+    finally:
+        session.close()
+
+    reponse = client.post(
+        "/api/v1/replies/analyze",
+        headers=headers,
+        json={"prospect_id": identifiant, "reply_text": "Merci de ne plus me contacter."},
+    )
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["opted_out"] is True
+
+
+def test_an_operator_cannot_approve_a_message(client, seeded, auth, session_factory):
+    """Le point de toute la séparation : produire n'est pas valider. Un envoi
+    engage l'entreprise, et cette décision demande un second regard."""
+    approbation = _pending_approval(session_factory)
+    decision = client.post(
+        f"/api/v1/approvals/{approbation}/decision",
+        headers=auth("operateur"),
+        json={"approve": True},
+    )
+    assert decision.status_code == 403, "un opérateur a pu approuver un message"
+
+
+def test_an_operator_can_still_request_an_approval(client, seeded, auth, session_factory):
+    """Demander n'est pas décider : l'opératrice doit pouvoir soumettre."""
+    from growth_agent.models.outreach import MessageDraft
+
+    _pending_approval(session_factory)
+    session = session_factory()
+    try:
+        brouillon = session.query(MessageDraft).first()
+        identifiant = str(brouillon.id)
+    finally:
+        session.close()
+
+    demande = client.post(
+        "/api/v1/approvals",
+        headers=auth("operateur"),
+        json={"draft_id": identifiant, "summary": "Nouvelle demande"},
+    )
+    assert demande.status_code == 201, demande.text
+
+
+def test_a_commercial_can_still_approve(client, seeded, auth, session_factory):
+    """La séparation ne doit rien retirer à qui devait déjà pouvoir."""
+    approbation = _pending_approval(session_factory)
+    decision = client.post(
+        f"/api/v1/approvals/{approbation}/decision",
+        headers=auth("commercial"),
+        json={"approve": True},
+    )
+    assert decision.status_code == 200, decision.text
+
+
+def test_an_operator_cannot_administer(client, seeded, auth):
+    assert (
+        client.post(
+            "/api/v1/icps",
+            headers=auth("operateur"),
+            json={"product_code": "educore", "name": "Profil non autorisé"},
+        ).status_code
+        == 403
+    )
+
+
+def test_a_reader_can_neither_report_a_reply_nor_declare_a_relay(client, seeded, auth):
+    assert client.post("/api/v1/replies/relay-check", headers=auth("lecteur")).status_code == 403
+
+
 def test_commercial_cannot_administer(client, seeded, auth):
     response = client.post(
         "/api/v1/icps",
@@ -229,3 +395,31 @@ def test_integrations_endpoint_never_exposes_a_secret(client, seeded, auth):
     assert body["maintrix"]["access"] == "lecture seule"
     assert body["maintrix"]["authorization_required"] is True
     assert body["educore"]["active"] is False
+
+
+def test_the_web_role_ladder_matches_the_api():
+    """L'interface duplique la hiérarchie des rôles, faute de pouvoir
+    partager une constante entre Python et TypeScript.
+
+    Une duplication qui dérive se paie cher ici : un rôle connu d'un seul
+    côté verrouille silencieusement l'interface pour qui le porte — il se
+    connecte, et tous les boutons disparaissent sans message d'erreur. Le
+    même piège que les statuts de purge, qui avaient rendu une métrique
+    muette pendant tout un lot.
+    """
+    import json
+    import re
+    from pathlib import Path
+
+    from growth_agent.security.rbac import ROLE_RANK
+
+    source = (
+        Path(__file__).resolve().parents[3] / "apps" / "web" / "src" / "lib" / "auth.tsx"
+    ).read_text(encoding="utf-8")
+    trouve = re.search(r"const RANK: Record<Role, number> = \{([^}]*)\}", source)
+    assert trouve, "RANK introuvable dans apps/web/src/lib/auth.tsx"
+
+    cote_web = json.loads("{" + re.sub(r"(\w+):", r'"\1":', trouve.group(1)).strip() + "}")
+    assert cote_web == dict(ROLE_RANK), (
+        f"hiérarchie divergente — API {dict(ROLE_RANK)}, interface {cote_web}"
+    )

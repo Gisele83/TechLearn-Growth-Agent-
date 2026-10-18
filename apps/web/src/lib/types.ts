@@ -1,6 +1,6 @@
 /** Types partagés avec l'API. Reflètent les schémas Pydantic côté serveur. */
 
-export type Role = 'admin' | 'commercial' | 'lecteur'
+export type Role = 'admin' | 'commercial' | 'operateur' | 'lecteur'
 
 export type VerificationStatus = 'unknown' | 'hypothesis' | 'verified' | 'rejected'
 

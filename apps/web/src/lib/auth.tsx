@@ -14,7 +14,11 @@ interface AuthState {
   can: (required: Role) => boolean
 }
 
-const RANK: Record<Role, number> = { lecteur: 10, commercial: 20, admin: 30 }
+// Doit rester identique à ROLE_RANK côté API
+// (apps/api/src/growth_agent/security/rbac.py). Un rôle connu d'un seul côté
+// verrouille silencieusement l'interface pour qui le porte : le test
+// test_the_web_role_ladder_matches_the_api le vérifie.
+const RANK: Record<Role, number> = { lecteur: 10, operateur: 20, commercial: 30, admin: 40 }
 
 const AuthContext = createContext<AuthState | null>(null)
 

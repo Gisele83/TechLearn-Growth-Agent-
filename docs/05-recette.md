@@ -161,6 +161,13 @@ GA_TEST_PG_URL="postgresql+psycopg://user@/base?host=/chemin/socket" \
 |---|---|---|
 | Tout endpoint métier exige une authentification | 7 cas paramétrés | ✅ |
 | Un lecteur ne peut pas écrire | `test_reader_cannot_write` | ✅ |
+| La matrice des quatre rôles est celle attendue | `test_the_role_ladder_separates_producing_from_approving` | ✅ |
+| Un opérateur reporte une réponse et déclare un relevé | `test_an_operator_can_report_a_reply_and_declare_a_relay` | ✅ |
+| **Un opérateur ne peut pas approuver un message** | `test_an_operator_cannot_approve_a_message` | ✅ |
+| Un opérateur peut demander une validation | `test_an_operator_can_still_request_an_approval` | ✅ |
+| Un commercial approuve toujours | `test_a_commercial_can_still_approve` | ✅ |
+| Un opérateur ne peut pas administrer | `test_an_operator_cannot_administer` | ✅ |
+| Un lecteur ne peut pas déclarer un relevé | `test_a_reader_can_neither_report_a_reply_nor_declare_a_relay` | ✅ |
 | Un commercial ne peut pas administrer | `test_commercial_cannot_administer` | ✅ |
 | Seul un administrateur retire une opposition | `test_only_admin_can_remove_a_suppression` | ✅ |
 | Un jeton altéré est refusé | `test_a_tampered_token_is_refused` | ✅ |

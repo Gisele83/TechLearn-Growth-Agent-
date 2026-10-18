@@ -11,10 +11,20 @@ class ProductCode(StrEnum):
 
 
 class Role(StrEnum):
-    """Rôles applicatifs, du plus large au plus restreint."""
+    """Rôles applicatifs, du plus large au plus restreint.
+
+    `operateur` existe pour une raison précise : produire et expédier n'est
+    pas valider. Quelqu'un dont le travail est de relever les réponses et de
+    reporter les oppositions a besoin d'écrire dans le système, pas
+    d'approuver les messages des autres. Sans ce palier, le seul rôle
+    capable de reporter une réponse emportait aussi le droit de valider un
+    envoi — ce qui est précisément la décision qu'un second regard doit
+    couvrir.
+    """
 
     ADMIN = "admin"
     COMMERCIAL = "commercial"
+    OPERATEUR = "operateur"
     LECTEUR = "lecteur"
 
 

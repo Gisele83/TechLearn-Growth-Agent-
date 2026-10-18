@@ -151,7 +151,7 @@ export function ProspectsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        {can('commercial') ? (
+        {can('operateur') ? (
           <button
             className="primary"
             onClick={runDiscovery}
@@ -223,7 +223,7 @@ export function ProspectsPage() {
                       <StageBadge stage={prospect.stage} />
                     </td>
                     <td>
-                      {can('commercial') ? (
+                      {can('operateur') ? (
                         <button onClick={() => qualify(prospect.id)} disabled={busy === prospect.id}>
                           {busy === prospect.id ? '…' : 'Qualifier'}
                         </button>

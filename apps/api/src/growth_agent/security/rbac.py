@@ -1,9 +1,22 @@
 """Contrôle d'accès par rôle.
 
-Trois rôles hiérarchisés. `lecteur` consulte, `commercial` produit et approuve
-les messages, `admin` administre la configuration et les oppositions. Le
-contrôle est centralisé ici pour qu'aucune route ne puisse inventer sa propre
-règle.
+Quatre rôles hiérarchisés :
+
+* `lecteur` — consulte, n'écrit rien.
+* `operateur` — produit, expédie un message déjà approuvé, relève les
+  réponses, enregistre une opposition. **N'approuve pas.**
+* `commercial` — tout cela, **et approuve**.
+* `admin` — administre la configuration et les oppositions.
+
+Le palier `operateur` sépare **produire** de **valider**. Il est né d'un cas
+concret : la personne qui relève la boîte de réponse doit pouvoir reporter
+une opposition, ce qui exige d'écrire dans le système. Tant que le seul rôle
+capable de le faire était `commercial`, elle recevait du même coup le droit
+d'approuver les messages des autres — c'est-à-dire exactement la décision
+qu'un second regard est censé couvrir.
+
+Le contrôle est centralisé ici pour qu'aucune route ne puisse inventer sa
+propre règle.
 """
 
 from __future__ import annotations
@@ -12,10 +25,13 @@ from collections.abc import Callable
 
 from growth_agent.models.enums import Role
 
+#: Rangs espacés de dix : un palier peut être intercalé plus tard sans
+#: renuméroter ceux qui existent.
 ROLE_RANK: dict[str, int] = {
     Role.LECTEUR: 10,
-    Role.COMMERCIAL: 20,
-    Role.ADMIN: 30,
+    Role.OPERATEUR: 20,
+    Role.COMMERCIAL: 30,
+    Role.ADMIN: 40,
 }
 
 
@@ -44,6 +60,10 @@ def require_role(required_role: str) -> Callable[[str], None]:
 
 # Permissions nommées, pour éviter les littéraux dispersés dans les routes.
 CAN_READ = Role.LECTEUR
-CAN_OPERATE = Role.COMMERCIAL
+#: Écrire : rédiger, expédier un message déjà approuvé, reporter une réponse,
+#: déclarer un relevé, enregistrer une opposition.
+CAN_OPERATE = Role.OPERATEUR
+#: Valider un message avant son départ. Volontairement **au-dessus** de
+#: `CAN_OPERATE` : c'est la frontière entre produire et engager l'entreprise.
 CAN_APPROVE = Role.COMMERCIAL
 CAN_ADMINISTER = Role.ADMIN

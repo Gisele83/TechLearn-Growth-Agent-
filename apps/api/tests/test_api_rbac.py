@@ -423,3 +423,96 @@ def test_the_web_role_ladder_matches_the_api():
     assert cote_web == dict(ROLE_RANK), (
         f"hiérarchie divergente — API {dict(ROLE_RANK)}, interface {cote_web}"
     )
+
+
+# --- Pipeline commercial : qui peut quoi ----------------------------------
+
+
+def _prospect_id(session_factory) -> str:
+    import uuid as _uuid
+
+    from sqlalchemy import select
+
+    from growth_agent.models.catalog import Product
+    from growth_agent.models.prospect import ProspectCandidate
+
+    session = session_factory()
+    try:
+        produit = session.execute(select(Product).where(Product.code == "educore")).scalar_one()
+        prospect = ProspectCandidate(
+            product_id=produit.id,
+            organization_name="Lycée pipeline",
+            dedupe_key=f"domain:{_uuid.uuid4().hex[:8]}.example.org",
+            domain=f"{_uuid.uuid4().hex[:8]}.example.org",
+            country_code="CM",
+            sector="Enseignement secondaire",
+            contact_full_name="Contact",
+            contact_role="Directeur",
+            contact_email=f"{_uuid.uuid4().hex[:6]}@exemple.example.org",
+        )
+        session.add(prospect)
+        session.commit()
+        return str(prospect.id)
+    finally:
+        session.close()
+
+
+def test_a_reader_sees_the_pipeline_but_does_not_change_it(client, seeded, auth, session_factory):
+    lecteur = auth("lecteur")
+    assert client.get("/api/v1/opportunities", headers=lecteur).status_code == 200
+    assert client.get("/api/v1/next-actions/workload", headers=lecteur).status_code == 200
+    assert client.get("/api/v1/cohorts?product_code=educore", headers=lecteur).status_code == 200
+    refus = client.post(
+        "/api/v1/opportunities",
+        headers=lecteur,
+        json={"prospect_id": _prospect_id(session_factory), "owner_email": "a@b.example.org"},
+    )
+    assert refus.status_code == 403
+
+
+def test_an_operator_runs_the_pipeline_end_to_end(client, seeded, auth, session_factory):
+    """Le parcours que l'audit disait absent : ouvrir, consigner une
+    démonstration, et voir ce qui est en retard."""
+    headers = auth("operateur")
+
+    dossier = client.post(
+        "/api/v1/opportunities",
+        headers=headers,
+        json={
+            "prospect_id": _prospect_id(session_factory),
+            "owner_email": "merveille@techlearn-saem.com",
+            "amount": 1500000,
+        },
+    )
+    assert dossier.status_code == 201, dossier.text
+    identifiant = dossier.json()["id"]
+    assert dossier.json()["currency"] == "XAF"
+
+    compte_rendu = client.post(
+        f"/api/v1/opportunities/{identifiant}/demo-report",
+        headers=headers,
+        json={"held": True, "summary": "Démonstration tenue.", "objections": ["timing"]},
+    )
+    assert compte_rendu.status_code == 201, compte_rendu.text
+    assert compte_rendu.json()["owner_email"] == "merveille@techlearn-saem.com"
+
+    charge = client.get("/api/v1/next-actions/workload", headers=headers).json()
+    assert any(entree["owner_email"] == "merveille@techlearn-saem.com" for entree in charge)
+
+
+def test_losing_a_file_without_a_reason_is_refused_by_the_api(
+    client, seeded, auth, session_factory
+):
+    headers = auth("operateur")
+    dossier = client.post(
+        "/api/v1/opportunities",
+        headers=headers,
+        json={"prospect_id": _prospect_id(session_factory), "owner_email": "a@b.example.org"},
+    ).json()
+    refus = client.post(
+        f"/api/v1/opportunities/{dossier['id']}/stage",
+        headers=headers,
+        json={"stage": "lost"},
+    )
+    assert refus.status_code == 409
+    assert "motif" in refus.json()["detail"]

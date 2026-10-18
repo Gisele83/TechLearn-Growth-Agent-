@@ -306,6 +306,44 @@ lui-même reste humain**.
 | Conséquence de la restauration sur la purge | `docs/08-supervision.md` | ✅ documentée |
 | Restauration éprouvée sur l'instance de **production** | — | ❌ **Non fait** (aucune instance) |
 
+## Pipeline commercial
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Un prospect n'a jamais deux dossiers ouverts | `test_a_prospect_never_gets_two_open_files` | ✅ |
+| Un dossier clos n'interdit pas d'en rouvrir un | `test_a_closed_file_does_not_block_a_new_one` | ✅ |
+| Perdre un dossier exige un motif | `test_losing_a_file_requires_a_reason` | ✅ |
+| Les motifs de perte sont une liste fermée | `test_an_unknown_loss_reason_is_refused` | ✅ |
+| Un dossier ne recule jamais | `test_a_file_never_goes_backwards` | ✅ |
+| Un passage d'étape laisse un événement, une seule fois | `test_replaying_a_stage_does_not_inflate_the_funnel` | ✅ |
+| Une démonstration tenue produit une suite | `test_a_held_demo_advances_and_produces_a_next_step` | ✅ |
+| Un rendez-vous manqué aussi | `test_a_missed_demo_still_produces_a_next_step` | ✅ |
+| Aucun verbatim dans le journal d'audit | `test_the_audit_trail_carries_categories_not_verbatims` | ✅ |
+| Une action sans porteur est refusée | `test_an_action_without_an_owner_is_refused` | ✅ |
+| « En retard » = échu et encore ouvert | `test_overdue_is_what_is_late_and_still_open` | ✅ |
+| La charge montre qui croule | `test_workload_shows_who_is_drowning` | ✅ |
+| Les tâches CRM redeviennent visibles | `test_a_coordinator_task_is_mirrored_locally` | ✅ |
+| L'opposition empêche tâche **et** double local | `test_no_task_no_mirror_for_a_suppressed_contact` | ✅ |
+| **La purge atteint les nouvelles tables** | `test_the_purge_reaches_the_new_tables` | ✅ |
+| Parcours complet via l'API | `test_an_operator_runs_the_pipeline_end_to_end` | ✅ |
+| Un lecteur voit sans modifier | `test_a_reader_sees_the_pipeline_but_does_not_change_it` | ✅ |
+
+## Lecture par cohorte
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Les répétitions ne forment pas de cohorte | `test_without_any_real_send_there_is_no_cohort` | ✅ |
+| La cohorte est le mois du premier contact | `test_a_prospect_belongs_to_the_month_of_its_first_contact` | ✅ |
+| La conversion se lit par cohorte, pas en cumulé | `test_conversion_is_read_against_the_cohort_not_the_total` | ✅ |
+| Une cohorte trop jeune est signalée | `test_a_young_cohort_is_flagged_not_hidden` | ✅ |
+| Une réservation sans suite n'est pas un contact | `test_a_reservation_without_follow_through_is_not_a_contact` | ✅ |
+| La médiane résiste à un dossier qui traîne | `test_the_median_resists_one_file_that_drags` | ✅ |
+| Une étape jamais atteinte n'a pas de médiane | `test_a_stage_never_reached_has_no_median` | ✅ |
+| Les pertes se comptent par motif | `test_losses_are_counted_by_reason` | ✅ |
+| Les envois bloqués sont enfin affichés | `test_blocked_sends_are_surfaced_by_reason` | ✅ |
+| Les retards sont attribués | `test_overdue_actions_are_attributed` | ✅ |
+| **Validation sur deux cohortes réelles** | — | ❌ **Non fait** — exige D2 et l'autorisation d'envoi |
+
 ## Verdict
 
 **Prêt pour un usage interne en mode simulé.** Le parcours complet fonctionne

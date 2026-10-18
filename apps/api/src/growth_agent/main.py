@@ -16,6 +16,7 @@ from growth_agent.api.routers import (
     auth,
     catalog,
     outreach,
+    pipeline,
     prospects,
     public,
     system,
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(prospects.router, prefix="/api/v1")
     app.include_router(outreach.router, prefix="/api/v1")
     app.include_router(analytics.router, prefix="/api/v1")
+    app.include_router(pipeline.router, prefix="/api/v1")
     return app
 
 

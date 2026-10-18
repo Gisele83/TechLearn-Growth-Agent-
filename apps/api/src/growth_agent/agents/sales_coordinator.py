@@ -18,13 +18,19 @@ from sqlalchemy import func, select
 
 from growth_agent.agents.base import AgentContext, AgentResult, BaseAgent
 from growth_agent.connectors.crm.base import CRMAdapter, CRMTask
-from growth_agent.models.enums import AgentName, OutreachEventType, ProspectStage
+from growth_agent.models.enums import (
+    AgentName,
+    NextActionKind,
+    OutreachEventType,
+    ProspectStage,
+)
 from growth_agent.models.outreach import OutreachEvent
 from growth_agent.models.prospect import ProspectCandidate
 from growth_agent.security.redaction import digest
 from growth_agent.services.audit import record_audit
 from growth_agent.services.crm_mapping import remember_mapping
 from growth_agent.services.outreach import record_outreach_event
+from growth_agent.services.pipeline import schedule_action
 from growth_agent.services.suppression import check_suppression
 
 MAX_FOLLOW_UPS = 2
@@ -36,6 +42,8 @@ class CoordinationOutcome:
     tasks_created: list[str] = field(default_factory=list)
     skipped: list[dict[str, str]] = field(default_factory=list)
     meeting_scheduled: bool = False
+    #: Double local de la tâche CRM, lisible par le tableau de bord.
+    next_action_id: str = ""
 
 
 class SalesCoordinatorAgent(BaseAgent[CoordinationOutcome]):
@@ -126,6 +134,25 @@ class SalesCoordinatorAgent(BaseAgent[CoordinationOutcome]):
                 remote_id=task.remote_id,
                 idempotency_key=idempotency_key,
             )
+
+        # La tâche part dans le CRM, et jusqu'ici elle n'en revenait jamais :
+        # le tableau de bord ne pouvait pas la voir, et « qu'est-ce qui est
+        # en retard » restait sans réponse. On en garde donc un double
+        # local, avec son porteur et son échéance.
+        local_action = schedule_action(
+            context.session,
+            product_id=prospect.product_id,
+            prospect_id=prospect.id,
+            kind=kind if kind in set(NextActionKind) else NextActionKind.FOLLOW_UP,
+            title=title,
+            owner_email=owner_email or context.actor,
+            due_at=due_at,
+            crm_remote_id=task.remote_id or "",
+            actor=context.actor,
+            actor_role=context.actor_role,
+            now=context.moment,
+        )
+        outcome.next_action_id = str(local_action.id)
 
         if kind == "demo":
             record_outreach_event(

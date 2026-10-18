@@ -31,9 +31,12 @@ from sqlalchemy.orm import Session
 from growth_agent.config import Settings, get_settings
 from growth_agent.models.ops import AuditEvent, ProductPilotEvent
 from growth_agent.models.outreach import MessageDraft
+from growth_agent.models.pipeline import NextAction, Opportunity
 from growth_agent.models.prospect import ProspectCandidate, ProspectSource
 from growth_agent.retention.policy import (
+    ANONYMIZED_ACTION_FIELDS,
     ANONYMIZED_DRAFT_FIELDS,
+    ANONYMIZED_OPPORTUNITY_FIELDS,
     ANONYMIZED_PROSPECT_FIELDS,
     ANONYMIZED_SOURCE_FIELDS,
     PROTECTED_TABLES,
@@ -392,6 +395,21 @@ class PurgeService:
         draft_values = {k: (v() if callable(v) else v) for k, v in ANONYMIZED_DRAFT_FIELDS.items()}
         self._session.execute(
             update(MessageDraft).where(MessageDraft.prospect_id.in_(ids)).values(**draft_values)
+        )
+        # Les tables du pipeline commercial portent elles aussi du texte
+        # saisi à la main, qui raconte des échanges avec des personnes. Les
+        # oublier ici laisserait des données personnelles survivre à la
+        # durée de conservation du prospect auquel elles se rapportent.
+        self._session.execute(
+            update(Opportunity)
+            .where(Opportunity.prospect_id.in_(ids))
+            .values(**ANONYMIZED_OPPORTUNITY_FIELDS)
+        )
+        action_values = {
+            k: (v() if callable(v) else v) for k, v in ANONYMIZED_ACTION_FIELDS.items()
+        }
+        self._session.execute(
+            update(NextAction).where(NextAction.prospect_id.in_(ids)).values(**action_values)
         )
 
     def _apply_drafts(self, moment: datetime, budget: int, on_batch) -> int:

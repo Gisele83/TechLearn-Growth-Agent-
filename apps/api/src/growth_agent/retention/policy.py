@@ -159,6 +159,23 @@ ANONYMIZED_DRAFT_FIELDS: dict[str, object] = {
     "variables_used": dict,
 }
 
+#: Sur un dossier commercial, les notes sont écrites à la main et racontent
+#: souvent un échange avec une personne nommée. Le nom de l'organisation, le
+#: montant et le motif de perte sont conservés : ce sont des faits
+#: d'entreprise, et les retirer viderait les indicateurs historiques.
+ANONYMIZED_OPPORTUNITY_FIELDS: dict[str, object] = {
+    "notes": "[anonymisé]",
+}
+
+#: Sur une action, le titre et le compte rendu sont saisis librement et
+#: peuvent nommer quelqu'un. Le porteur, lui, est un salarié : il relève d'un
+#: autre régime que les données de prospection, et reste en place.
+ANONYMIZED_ACTION_FIELDS: dict[str, object] = {
+    "title": "[anonymisé]",
+    "outcome": "[anonymisé]",
+    "payload": dict,
+}
+
 #: Sur une source, l'extrait peut citer une personne. L'URL et la date sont
 #: conservées : ce sont elles qui prouvent la provenance, et leur disparition
 #: rendrait impossible de justifier a posteriori pourquoi ce prospect avait

@@ -9,6 +9,10 @@ from growth_agent.models.enums import (
     DeliveryState,
     DraftStatus,
     LegalBasis,
+    LossReason,
+    NextActionKind,
+    NextActionStatus,
+    OpportunityStage,
     OutreachChannel,
     OutreachEventType,
     PilotEventType,
@@ -38,6 +42,7 @@ from growth_agent.models.outreach import (
     SuppressionEntry,
     UnsubscribeToken,
 )
+from growth_agent.models.pipeline import NextAction, Opportunity
 from growth_agent.models.prospect import (
     CRMMapping,
     ProspectCandidate,
@@ -60,8 +65,14 @@ __all__ = [
     "IdealCustomerProfile",
     "IntegrationConfig",
     "LegalBasis",
+    "LossReason",
     "MessageDraft",
     "MessageTemplate",
+    "NextAction",
+    "NextActionKind",
+    "NextActionStatus",
+    "Opportunity",
+    "OpportunityStage",
     "OutreachChannel",
     "OutreachEvent",
     "OutreachEventType",

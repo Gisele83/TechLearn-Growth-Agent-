@@ -71,6 +71,53 @@ class ProspectStage(StrEnum):
     DISQUALIFIED = "disqualified"
 
 
+class OpportunityStage(StrEnum):
+    """Étapes d'un dossier commercial.
+
+    Distinctes de `ProspectStage`, qui décrit l'organisation : un prospect
+    peut être « contacté » sans qu'aucun dossier ne soit ouvert, et un
+    dossier perdu n'empêche pas de recontacter l'organisation l'an prochain.
+    """
+
+    OPEN = "open"
+    DEMO = "demo"
+    PROPOSAL = "proposal"
+    PILOT = "pilot"
+    WON = "won"
+    LOST = "lost"
+
+
+class NextActionKind(StrEnum):
+    FOLLOW_UP = "follow_up"
+    CALL = "call"
+    DEMO = "demo"
+    DEMO_REPORT = "demo_report"
+    PROPOSAL = "proposal"
+    RENEWAL = "renewal"
+
+
+class NextActionStatus(StrEnum):
+    OPEN = "open"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
+class LossReason(StrEnum):
+    """Motifs de perte, repris des objections classées.
+
+    Fermés volontairement : un champ libre produit autant de motifs que de
+    dossiers, et ne permet plus d'additionner quoi que ce soit.
+    """
+
+    NO_BUDGET = "no_budget"
+    NO_NEED = "no_need"
+    COMPETITOR = "competitor"
+    TIMING = "timing"
+    NO_RESPONSE = "no_response"
+    NOT_DECISION_MAKER = "not_decision_maker"
+    OTHER = "other"
+
+
 class DraftStatus(StrEnum):
     DRAFT = "draft"
     PENDING_APPROVAL = "pending_approval"

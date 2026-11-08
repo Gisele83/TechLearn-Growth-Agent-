@@ -259,8 +259,51 @@ def test_a_report_made_mostly_of_declarations_says_so(session, product_educore, 
     )
 
     rapport = _report(session, product_educore, now=datetime(2026, 10, 18, tzinfo=UTC))
-    assert rapport.by_source == {EventSource.OBSERVED: 1, EventSource.DECLARED: 1}
-    assert any("50 %" in note and "saisis par une personne" in note for note in rapport.notes)
+    assert rapport.by_stage_source["contacted"] == {"observed": 1, "declared": 0}
+    assert rapport.by_stage_source["replied"] == {"observed": 0, "declared": 1}
+    assert any("Aucun événement constaté" in note and "réponses" in note for note in rapport.notes)
+
+
+def test_the_volume_of_sends_does_not_drown_the_warning(session, product_educore, make_prospect):
+    """Le défaut que le pourcentage global cachait.
+
+    Première version : « part des événements saisis à la main ». Sur une
+    campagne réelle — beaucoup d'envois, peu de réponses — elle affiche un
+    chiffre rassurant précisément quand tout ce qui sert à décider vient
+    d'une saisie. Ici : 20 envois constatés, 2 réponses saisies, soit 9 %
+    de saisie. Lu seul, c'est excellent. En réalité, **aucune** conversion
+    n'est constatée.
+    """
+    maintenant = datetime(2026, 10, 18, tzinfo=UTC)
+    aout = datetime(2026, 8, 4, tzinfo=UTC)
+    for index in range(20):
+        prospect = make_prospect(product=product_educore, domain=f"v{index}.example.org")
+        _event(
+            session,
+            product_educore,
+            prospect,
+            OutreachEventType.SENT,
+            aout,
+            source=EventSource.OBSERVED,
+        )
+        if index < 2:
+            _event(
+                session,
+                product_educore,
+                prospect,
+                OutreachEventType.REPLIED,
+                aout + timedelta(days=2),
+                source=EventSource.DECLARED,
+            )
+
+    rapport = _report(session, product_educore, now=maintenant)
+    part_globale = round(
+        100 * rapport.by_source[EventSource.DECLARED] / sum(rapport.by_source.values())
+    )
+    assert part_globale < 10, "le cas à couvrir est bien celui d'un pourcentage flatteur"
+    # Et pourtant l'avertissement sort, parce qu'il porte sur les étapes.
+    assert any("réponses" in note for note in rapport.notes)
+    assert rapport.by_stage_source["replied"]["observed"] == 0
 
 
 def test_a_fully_observed_report_carries_no_declaration_warning(
@@ -278,7 +321,8 @@ def test_a_fully_observed_report_carries_no_declaration_warning(
         source=EventSource.OBSERVED,
     )
     rapport = _report(session, product_educore, now=datetime(2026, 10, 18, tzinfo=UTC))
-    assert not any("saisis par une personne" in note for note in rapport.notes)
+    assert rapport.by_stage_source == {"contacted": {"observed": 1, "declared": 0}}
+    assert not any("Aucun événement constaté" in note for note in rapport.notes)
 
 
 # --- Les rendez-vous manqués ----------------------------------------------
@@ -398,6 +442,7 @@ def test_the_cohort_payload_carries_everything_the_screen_needs(client, seeded, 
         "computed_at",
         "cohorts",
         "by_source",
+        "by_stage_source",
         "side_facts",
         "median_days",
         "loss_reasons",
@@ -459,4 +504,25 @@ def test_the_screen_reads_the_median_keys_the_api_actually_produces(client, seed
     corps = client.get("/api/v1/cohorts?product_code=educore", headers=auth("lecteur")).json()
     assert cote_web == set(corps["median_days"]), (
         f"délais divergents — API {sorted(corps['median_days'])}, interface {sorted(cote_web)}"
+    )
+
+
+def test_the_screen_reads_the_side_facts_the_api_names():
+    """Même garde-fou pour les faits comptés à côté de l'entonnoir.
+
+    Une clé inventée côté interface affiche 0 sans la moindre erreur : la
+    direction lirait « aucun rejet » alors qu'il y en a eu douze.
+    """
+    import re
+
+    trouve = re.search(
+        r"const SIDE_FACTS: Array<\{ key: string; label: string; help: string \}> = \[(.*?)\n\]",
+        _page_performance(),
+        re.DOTALL,
+    )
+    assert trouve, "SIDE_FACTS introuvable dans apps/web/src/pages/Performance.tsx"
+    cote_web = set(re.findall(r"key: '([a-z_]+)'", trouve.group(1)))
+    cote_api = {nom for nom, _ in SIDE_FACTS}
+    assert cote_web <= cote_api, (
+        f"l'interface lit des faits que l'API ne produit pas : {sorted(cote_web - cote_api)}"
     )

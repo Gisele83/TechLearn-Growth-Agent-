@@ -35,4 +35,4 @@ for _ in $(seq 1 30); do
 done
 
 mkdir -p docs/captures
-(cd apps/web && CHROMIUM_PATH="${CHROMIUM_PATH:-}" node ../../scripts/captures.mjs)
+(cd apps/web && CHROMIUM_PATH="${CHROMIUM_PATH:-}" node scripts/captures.mjs)

@@ -58,7 +58,25 @@ JOURNEY: tuple[tuple[str, str], ...] = (
 SIDE_FACTS: tuple[tuple[str, str], ...] = (
     ("demo_no_show", OutreachEventType.DEMO_NO_SHOW),
     ("opted_out", OutreachEventType.OPTED_OUT),
+    # Remises et rejets viennent du fournisseur d'expédition. Ils sont
+    # comptés à côté, et non retranchés des contacts : un rejet qui arrive
+    # deux heures après l'envoi ferait baisser tout seul un chiffre déjà lu,
+    # et un indicateur qui bouge seul cesse d'être un indicateur.
+    ("delivered", OutreachEventType.DELIVERED),
+    ("bounced", OutreachEventType.BOUNCED),
 )
+
+#: Nom lisible de chaque étape, pour les notes du rapport. L'interface a ses
+#: propres libellés pour ses colonnes ; ceux-ci servent aux lecteurs qui ne
+#: passent pas par elle — un export, une alerte, un courriel de synthèse.
+STAGE_LABELS: dict[str, str] = {
+    "contacted": "contacts",
+    "replied": "réponses",
+    "demo_scheduled": "rendez-vous planifiés",
+    "demo_held": "démonstrations tenues",
+    "pilot_started": "pilotes activés",
+    "won": "conversions",
+}
 
 #: En deçà, une cohorte est trop récente pour que ses taux veuillent dire
 #: quelque chose : les conversions n'ont pas eu le temps de se produire.
@@ -90,6 +108,13 @@ class CohortReport:
     #: savoir d'où vient le chiffre, c'est lui prêter une fiabilité qu'il
     #: n'a peut-être pas.
     by_source: dict[str, int] = field(default_factory=dict)
+    #: Origine **par étape** : `{"demo_held": {"observed": 0, "declared": 7}}`.
+    #:
+    #: Le total par origine ne suffit pas, et il rassure à tort. Sur 500
+    #: envois, 20 réponses et 5 démonstrations, il affiche « 5 % de saisie »
+    #: — un chiffre excellent — alors que la totalité de ce qui sert à
+    #: décider vient d'une saisie. Le volume des envois noie tout le reste.
+    by_stage_source: dict[str, dict[str, int]] = field(default_factory=dict)
     side_facts: dict[str, int] = field(default_factory=dict)
     median_days: dict[str, float | None] = field(default_factory=dict)
     loss_reasons: dict[str, int] = field(default_factory=dict)
@@ -213,6 +238,17 @@ def compute_cohorts(
             )
         report.cohorts.append(ligne)
 
+    # --- Origine, étape par étape -----------------------------------------
+    for nom, _ in JOURNEY:
+        total = sum(ligne.counts.get(nom, 0) for ligne in report.cohorts)
+        if not total:
+            continue
+        constate = sum(ligne.observed.get(nom, 0) for ligne in report.cohorts)
+        report.by_stage_source[nom] = {
+            "observed": constate,
+            "declared": total - constate,
+        }
+
     # --- Délais médians entre étapes --------------------------------------
     for (depuis, _), (vers, _) in zip(JOURNEY, JOURNEY[1:], strict=False):
         ecarts = [
@@ -282,15 +318,27 @@ def compute_cohorts(
             f"Cohorte(s) de moins de 30 jours : {', '.join(jeunes)}. "
             "Leurs taux sont mécaniquement bas et ne se comparent pas aux autres."
         )
-    declares = report.by_source.get(EventSource.DECLARED, 0)
-    total_evenements = sum(report.by_source.values())
-    if declares and total_evenements:
-        part = round(100 * declares / total_evenements)
+    aveugles = [
+        STAGE_LABELS.get(nom, nom)
+        for nom, parts in report.by_stage_source.items()
+        if parts["observed"] == 0
+    ]
+    if aveugles:
         report.notes.append(
-            f"{part} % des événements de ce rapport ont été saisis par une "
-            "personne, pas constatés par le système. Leur absence ne prouve "
-            "rien : une démonstration non saisie reste invisible."
+            f"Aucun événement constaté par le système pour : {', '.join(aveugles)}. "
+            "Ces étapes reposent entièrement sur une saisie : leur absence ne "
+            "prouve rien, et leur présence n'est vérifiable par personne."
         )
+    rejets = report.side_facts.get("bounced", 0)
+    remis = report.side_facts.get("delivered", 0)
+    if rejets:
+        report.notes.append(
+            f"{rejets} message(s) rejeté(s) par le serveur du destinataire. "
+            "Ils restent comptés dans les contacts : ils ont bien été envoyés, "
+            "mais ils ne sont arrivés chez personne."
+        )
+    if remis or rejets:
+        report.notes.append(f"{remis} remise(s) confirmée(s) par le fournisseur d'expédition.")
     if report.side_facts.get("demo_no_show"):
         report.notes.append(
             f"{report.side_facts['demo_no_show']} rendez-vous manqué(s) : "

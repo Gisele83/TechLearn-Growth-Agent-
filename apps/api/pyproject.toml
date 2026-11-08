@@ -14,6 +14,11 @@ dependencies = [
   "tenacity>=8.3",
   "psycopg[binary]>=3.1",
   "redis>=5.0",
+  # Vérification ECDSA des événements d'expédition SendGrid. Le reste du
+  # projet signe en HMAC-SHA256 avec la bibliothèque standard ; SendGrid
+  # impose une courbe elliptique, qui ne s'implémente pas à la main de façon
+  # responsable. Seule dépendance ajoutée pour ce besoin.
+  "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]

@@ -222,7 +222,7 @@ remonte deux fois de suite.
 | Contrôle | Preuve | État |
 |---|---|---|
 | Compilation stricte | `tsc --noEmit` | ✅ |
-| Tests unitaires | 57 tests (dont 30 pour « Performance commerciale ») | ✅ |
+| Tests unitaires | 61 tests (dont 34 pour « Performance commerciale ») | ✅ |
 | Construction | 67 ko compressés | ✅ |
 | Rendu réel des huit écrans | Vérifié au navigateur sur l'API réelle | ✅ |
 | Aucune erreur console | Vérifié sur toutes les pages | ✅ |
@@ -365,12 +365,49 @@ lui-même reste humain**.
 | La reprise de la migration 0006 suit ce que le code écrit | `test_the_migration_backfill_agrees_with_what_the_code_writes` | ✅ vérifié en désynchronisant |
 | Le rapport dit, par étape, ce qu'il a constaté | `test_the_report_says_how_many_of_each_stage_it_actually_saw` | ✅ |
 | Jamais plus de constatés que de comptés | `test_what_was_observed_never_exceeds_what_was_counted` | ✅ |
+| Le volume des envois ne noie pas l'avertissement | `test_the_volume_of_sends_does_not_drown_the_warning` | ✅ **défaut de la première version** |
 | Un rapport majoritairement déclaré le dit | `test_a_report_made_mostly_of_declarations_says_so` | ✅ |
 | L'avertissement disparaît quand tout est constaté | `test_a_fully_observed_report_carries_no_declaration_warning` | ✅ |
 | Un rendez-vous manqué est compté à part | `test_a_missed_meeting_is_counted_apart_from_demos` | ✅ |
 | Aucun fait annexe n'entre dans l'entonnoir | `test_every_side_fact_is_kept_out_of_the_funnel` | ✅ |
 | L'écran lit les étapes que l'API produit | `test_the_screen_reads_the_stages_the_api_actually_produces` | ✅ vérifié en désynchronisant |
 | L'écran lit les délais que l'API produit | `test_the_screen_reads_the_median_keys_the_api_actually_produces` | ✅ vérifié en désynchronisant |
+
+## Événements d'expédition (webhook SendGrid)
+
+Avant ce branchement, le système ne constatait que deux choses : qu'il avait
+remis un message au fournisseur, et qu'il en avait bloqué un. Tout le reste
+du parcours reposait sur une saisie.
+
+| Contrôle | Preuve | État |
+|---|---|---|
+| Sans clé configurée, la route n'accepte rien | `test_without_a_configured_key_the_route_accepts_nothing` | ✅ |
+| Une signature d'une autre clé est refusée | `test_a_delivery_signed_by_another_key_is_refused` | ✅ vérifié en neutralisant la vérification |
+| Un corps modifié après signature est refusé | `test_a_body_modified_after_signing_is_refused` | ✅ |
+| Une livraison rejouée est refusée | `test_a_replayed_delivery_is_refused` | ✅ vérifié en neutralisant la fenêtre |
+| La fenêtre coupe aussi une horloge en avance | `test_the_clock_window_cuts_both_ways` | ✅ |
+| Le refus ne dit pas quel contrôle a échoué | `test_a_refusal_does_not_say_which_check_failed` | ✅ |
+| La signature est vérifiée **avant** la lecture du JSON | `test_a_signed_but_unreadable_body_is_refused_after_the_signature` | ✅ |
+| Une remise est enregistrée comme **constatée** | `test_a_delivery_is_recorded_as_observed` | ✅ |
+| Le suffixe de nœud n'empêche pas le rattachement | `test_the_node_suffix_sendgrid_adds_does_not_break_the_match` | ✅ vérifié en le conservant |
+| Un message qui n'est pas de nous est écarté | `test_an_event_for_a_message_that_is_not_ours_is_discarded` | ✅ |
+| Une réservation abandonnée ne produit rien | `test_an_event_for_an_abandoned_reservation_is_discarded` | ✅ |
+| Un rejeu de SendGrid ne double pas les chiffres | `test_sendgrid_replaying_a_delivery_does_not_double_the_figures` | ✅ |
+| Les événements hors contrat sont écartés | `test_events_outside_the_contract_are_discarded` | ✅ 3 types |
+| Une ligne illisible ne perd pas le lot | `test_a_malformed_entry_does_not_lose_the_rest_of_the_batch` | ✅ |
+| Un rejet définitif arrête les envois suivants | `test_a_hard_bounce_stops_further_sending` | ✅ |
+| Un refus temporaire ne crée pas d'opposition | `test_a_temporary_block_does_not_create_an_opposition` | ✅ |
+| Un signalement en indésirable vaut opposition | `test_a_spam_report_is_an_opposition` | ✅ |
+| Une désinscription par un chemin inattendu est honorée | `test_an_unsubscribe_through_an_unexpected_path_is_still_honoured` | ✅ |
+| L'adresse opposée vient de notre base, pas de la charge | `test_the_opposed_address_is_read_from_our_records_not_from_the_payload` | ✅ |
+| Le motif en clair n'atteint jamais la base | `test_the_providers_free_text_reason_never_reaches_the_database` | ✅ |
+| Ce qui est lu ne porte aucune donnée personnelle | `test_what_is_read_carries_no_personal_data` | ✅ |
+| Un rejet ne réécrit pas le nombre de contacts | `test_a_bounce_does_not_rewrite_the_contact_count` | ✅ |
+| Les ouvertures sont comptées, pas absorbées | `test_opens_are_counted_but_not_absorbed_while_tracking_is_off` | ✅ décision, voir doc 02 |
+| **Épreuve contre le vrai SendGrid** | — | ❌ **Non fait** — exige D2 et l'autorisation d'envoi |
+
+Les signatures sont **réellement calculées** : la doublure engendre une paire
+ECDSA et signe comme SendGrid. Ce n'est pas une doublure qui dit oui.
 
 ## Opposition et relances humaines
 
@@ -421,6 +458,11 @@ démonstration » pour un contact qui venait d'écrire STOP.
 | Un refus d'accès se distingue d'une panne | `distingue un refus d'accès d'une panne` | ✅ |
 | État vide expliqué | `explique l'absence de cohorte au lieu d'afficher un tableau vide` | ✅ |
 | Les mises en garde de l'API sont reprises telles quelles | `reprend telles quelles les mises en garde de l'API` | ✅ |
+| L'avertissement nomme les étapes au lieu d'un pourcentage | `avertit même quand le volume des envois rendrait le ratio flatteur` | ✅ corrigé |
+| Pas d'avertissement quand chaque étape est constatée | `ne crie pas au loup quand chaque étape est constatée` | ✅ |
+| Remises et rejets sont affichés à côté de l'entonnoir | `montre ce que le fournisseur a confirmé et ce qu'il a rejeté` | ✅ |
+| Une tuile à zéro, plutôt qu'une tuile absente | `affiche zéro plutôt que rien quand aucun fait annexe n'est remonté` | ✅ |
+| L'écran lit les faits annexes que l'API nomme | `test_the_screen_reads_the_side_facts_the_api_names` | ✅ vérifié en désynchronisant |
 | **Restriction de la page aux seuls rôles de direction** | — | ❌ arbitrage ouvert : l'API l'ouvre à tout compte en lecture |
 
 ## Verdict

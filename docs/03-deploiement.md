@@ -252,3 +252,24 @@ déploiement automatique demanderait de confier des identifiants de production
 - [ ] Retour arrière documenté et essayé
 - [ ] Connecteurs produits confirmés en mode simulé
 - [ ] Procès-verbal de mise en service signé
+
+### Événements d'expédition — à faire avant la première campagne réelle
+
+Sans cette étape, tout ce qui suit le premier contact est **déclaré** : la
+page « Performance commerciale » l'affichera en toutes lettres, et la
+direction aura raison de ne pas se fier à des conversions que personne n'a
+vérifiées.
+
+- [ ] Dans la console SendGrid : *Settings → Mail Settings → Event Webhook*,
+      URL `https://<domaine>/webhooks/sendgrid/events`
+- [ ] Activer la **signature** (« Signed Event Webhook »), copier la clé
+      publique dans `GA_SENDGRID_EVENT_PUBLIC_KEY`
+- [ ] Cocher les seuls événements absorbés : *delivered*, *bounced*,
+      *dropped*, *spam reports*, *unsubscribes*. Ne pas cocher *clicks* ni
+      *opens* — voir l'arbitrage dans `docs/02-securite-conformite.md`
+- [ ] Vérifier que la route répond 503 **avant** de poser la clé, et 403 sur
+      une requête non signée **après**
+- [ ] Première campagne : relire le compte rendu d'absorption dans le journal
+      d'audit (`email_events.ingested`). Un `unmatched` élevé signifie que
+      les identifiants de message ne se rapprochent pas, et donc qu'aucun
+      événement n'alimente les indicateurs

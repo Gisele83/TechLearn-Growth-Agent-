@@ -20,6 +20,7 @@ from growth_agent.api.routers import (
     prospects,
     public,
     system,
+    webhooks,
 )
 from growth_agent.config import Environment, get_settings
 from growth_agent.logging_config import configure_logging
@@ -99,6 +100,9 @@ def create_app() -> FastAPI:
     app.include_router(system.router)
     # Publique, sans authentification : voir api/routers/public.py.
     app.include_router(public.router)
+    # Appelée par SendGrid, sans jeton : l'authentification est la signature
+    # de la requête, et la route est fermée tant qu'aucune clé n'est posée.
+    app.include_router(webhooks.router)
     app.include_router(system.admin_router, prefix="/api/v1")
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(catalog.router, prefix="/api/v1")

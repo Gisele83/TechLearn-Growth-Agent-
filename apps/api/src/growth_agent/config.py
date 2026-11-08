@@ -95,6 +95,21 @@ class Settings(BaseSettings):
     #: qui que ce soit. Laisser à `true` jusqu'au procès-verbal de mise en
     #: service.
     sendgrid_sandbox_mode: bool = True
+    #: Clé **publique** du « Signed Event Webhook », telle que SendGrid
+    #: l'affiche dans sa console (base64, format DER). Ce n'est pas un
+    #: secret — c'est une clé de vérification — mais c'est le verrou : tant
+    #: qu'elle est vide, la route d'absorption refuse tout. Un point d'entrée
+    #: public qui écrirait en base sur simple présentation d'un JSON
+    #: permettrait de fausser les indicateurs et d'inscrire des oppositions.
+    sendgrid_event_public_key: str = ""
+    #: Âge maximal d'une livraison acceptée. Une requête authentique
+    #: interceptée reste authentique : sans borne, elle se rejoue.
+    sendgrid_event_tolerance_seconds: int = 600
+    #: Absorber les ouvertures. Faux par défaut, et ce n'est pas une
+    #: précaution de façade : une ouverture ne se mesure qu'en insérant un
+    #: pixel de suivi dans le message. C'est un traitement du comportement
+    #: du destinataire, qui se décide à part de la simple expédition.
+    sendgrid_track_opens: bool = False
     #: Boîte **réellement surveillée** à laquelle les réponses arrivent, quand
     #: l'expéditeur n'en accepte pas. Vide tant qu'aucune boîte n'est
     #: confirmée : les messages cessent alors d'inviter à répondre, plutôt que

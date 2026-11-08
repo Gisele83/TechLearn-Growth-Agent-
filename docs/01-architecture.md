@@ -253,6 +253,34 @@ format stocké (`pbkdf2_sha256$<itérations>$<sel>$<clé>`) permet d'augmenter l
 coût plus tard sans invalider les condensats existants, et `needs_rehash` le
 signale.
 
+### ADR-007 — `cryptography` pour vérifier les événements d'expédition
+
+**Contexte.** Tout le reste du projet signe en HMAC-SHA256 avec la
+bibliothèque standard : jetons de session, webhooks produits, mots de passe.
+Aucune bibliothèque de cryptographie n'était déclarée, et l'ADR-006 explique
+pourquoi ce choix a été tenu même là où un paquet tiers était l'usage.
+
+SendGrid signe ses événements en ECDSA sur la courbe P-256. Il n'offre pas
+de variante HMAC.
+
+**Décision.** Déclarer `cryptography` comme dépendance, pour cette seule
+vérification.
+
+**Pourquoi.** ECDSA ne s'implémente pas à la main de façon responsable :
+l'arithmétique de courbe elliptique est exacte ou fausse, et une
+implémentation naïve fuit la clé par son temps d'exécution. Ici, la
+bibliothèque standard ne propose aucun équivalent — contrairement au cas de
+l'ADR-006, où `hashlib.pbkdf2_hmac` existait et faisait le travail.
+
+**Alternative écartée.** Ne pas vérifier la signature, et protéger la route
+par un secret dans l'URL. Une URL se retrouve dans les journaux de tous les
+intermédiaires ; le gain en dépendances ne vaut pas ce qu'il coûte en
+surface d'attaque, pour une route qui écrit des oppositions.
+
+**Conséquence.** `cryptography` est une dépendance native. Elle doit être
+disponible pour l'architecture visée à la construction de l'image, et sa
+mise à jour suit les avis de sécurité comme les autres.
+
 ## Flux de données
 
 ```mermaid

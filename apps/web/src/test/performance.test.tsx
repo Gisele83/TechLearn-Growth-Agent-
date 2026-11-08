@@ -129,7 +129,16 @@ function rapport(surcharges: Partial<CohortReport> = {}): CohortReport {
       },
     ],
     by_source: { observed: 14, declared: 12 },
-    side_facts: { demo_no_show: 2, opted_out: 1 },
+    by_stage_source: {
+      // Les envois sont constatés ; tout le reste vient d'une saisie.
+      contacted: { observed: 14, declared: 0 },
+      replied: { observed: 0, declared: 5 },
+      demo_scheduled: { observed: 0, declared: 3 },
+      demo_held: { observed: 0, declared: 2 },
+      pilot_started: { observed: 0, declared: 1 },
+      won: { observed: 0, declared: 1 },
+    },
+    side_facts: { demo_no_show: 2, opted_out: 1, delivered: 13, bounced: 1 },
     median_days: {
       contacted_to_replied: 3.5,
       replied_to_demo_scheduled: 5,
@@ -151,7 +160,14 @@ async function afficher(reponse: unknown = rapport()) {
     reponse instanceof Error ? Promise.reject(reponse) : Promise.resolve(reponse),
   )
   render(<PerformancePage />)
-  await waitFor(() => expect(cohortes).toHaveBeenCalled())
+  // Attendre que l'API ait été **appelée** ne suffit pas : la promesse se
+  // résout après, et le rendu après encore. Un test sur cinq s'exécutait
+  // donc sur la page de chargement. On attend ici l'un des trois états
+  // terminaux — rapport affiché, panne, refus d'accès — qui sont les seules
+  // sorties de `load`.
+  await screen.findByText(
+    /Volumes par cohorte|Indicateurs indisponibles|Accès refusé/,
+  )
 }
 
 /** Le tableau portant un en-tête donné. */
@@ -202,10 +218,48 @@ describe('volumes par cohorte', () => {
     expect(cellules[4]).toHaveTextContent('déclaré')
   })
 
-  it('annonce la part saisie à la main en haut de page', async () => {
+  it('nomme les étapes constatées et celles qui reposent sur une saisie', async () => {
     await afficher()
-    expect(screen.getByText(/Origine des chiffres/)).toBeInTheDocument()
-    expect(screen.getByText(/12 saisi\(s\) par une personne/)).toBeInTheDocument()
+    const banniere = screen.getByText(/Origine des chiffres/).closest('.banner')!
+    expect(banniere).toHaveTextContent('constaté par le système : contactés')
+    expect(banniere).toHaveTextContent(
+      'Repose sur une saisie : réponses, rendez-vous planifiés, démos tenues, pilotes activés, conversions',
+    )
+  })
+
+  it('avertit même quand le volume des envois rendrait le ratio flatteur', async () => {
+    // Le défaut de la première version : « part des événements saisis ».
+    // 500 envois et 25 saisies donnent 5 % — un chiffre rassurant, alors
+    // qu'aucune conversion n'est constatée. La bannière porte donc sur les
+    // étapes, pas sur les volumes.
+    await afficher(
+      rapport({
+        by_source: { observed: 500, declared: 25 },
+        by_stage_source: {
+          contacted: { observed: 500, declared: 0 },
+          replied: { observed: 0, declared: 20 },
+          won: { observed: 0, declared: 5 },
+        },
+      }),
+    )
+    const banniere = screen.getByText(/Origine des chiffres/).closest('.banner')!
+    expect(banniere).toHaveTextContent('Repose sur une saisie : réponses, conversions')
+    expect(banniere).toHaveClass('warn')
+    expect(banniere).not.toHaveTextContent('5 %')
+  })
+
+  it('ne crie pas au loup quand chaque étape est constatée', async () => {
+    await afficher(
+      rapport({
+        by_stage_source: {
+          contacted: { observed: 14, declared: 0 },
+          replied: { observed: 5, declared: 0 },
+        },
+      }),
+    )
+    const banniere = screen.getByText(/Origine des chiffres/).closest('.banner')!
+    expect(banniere).not.toHaveTextContent('Repose sur une saisie')
+    expect(banniere).toHaveClass('info')
   })
 })
 
@@ -266,6 +320,28 @@ describe('délais, faits annexes et motifs', () => {
       .closest('section')!
     expect(within(section).getByText('Rendez-vous manqués')).toBeInTheDocument()
     expect(within(section).getByText('2')).toBeInTheDocument()
+  })
+
+  it('montre ce que le fournisseur a confirmé et ce qu’il a rejeté', async () => {
+    // Les seuls faits du parcours que personne ne saisit à la main.
+    await afficher()
+    const section = screen
+      .getByRole('heading', { name: /Ce qui n’apparaît pas dans l’entonnoir/ })
+      .closest('section')!
+    expect(within(section).getByText('Remises confirmées')).toBeInTheDocument()
+    expect(within(section).getByText('13')).toBeInTheDocument()
+    expect(within(section).getByText('Rejets')).toBeInTheDocument()
+  })
+
+  it('affiche zéro plutôt que rien quand aucun fait annexe n’est remonté', async () => {
+    // Une tuile absente se lit « indicateur cassé » ; une tuile à zéro se
+    // lit « rien à signaler ». Ce n'est pas la même information.
+    await afficher(rapport({ side_facts: {} }))
+    const section = screen
+      .getByRole('heading', { name: /Ce qui n’apparaît pas dans l’entonnoir/ })
+      .closest('section')!
+    expect(within(section).getByText('Remises confirmées')).toBeInTheDocument()
+    expect(within(section).getAllByText('0').length).toBeGreaterThanOrEqual(4)
   })
 
   it('affiche les motifs de perte, dont ceux non renseignés', async () => {

@@ -33,7 +33,7 @@ import { ApiError } from '@/lib/types'
 const STAGES: Array<{ key: string; label: string }> = [
   { key: 'contacted', label: 'Contactés' },
   { key: 'replied', label: 'Réponses' },
-  { key: 'demo_scheduled', label: 'RDV planifiés' },
+  { key: 'demo_scheduled', label: 'Rendez-vous planifiés' },
   { key: 'demo_held', label: 'Démos tenues' },
   { key: 'pilot_started', label: 'Pilotes activés' },
   { key: 'won', label: 'Conversions' },
@@ -41,6 +41,34 @@ const STAGES: Array<{ key: string; label: string }> = [
 
 /** Les taux se lisent par rapport aux contactés : la première étape n'en a pas. */
 const RATE_STAGES = STAGES.slice(1)
+
+/**
+ * Faits comptés à côté de l'entonnoir. Les clés doivent rester celles de
+ * `SIDE_FACTS` côté API : `test_the_screen_reads_the_side_facts_the_api_names`
+ * le vérifie. Une clé inventée afficherait 0 sans la moindre erreur.
+ */
+const SIDE_FACTS: Array<{ key: string; label: string; help: string }> = [
+  {
+    key: 'delivered',
+    label: 'Remises confirmées',
+    help: 'Confirmé par le fournisseur d’expédition',
+  },
+  {
+    key: 'bounced',
+    label: 'Rejets',
+    help: 'Le serveur du destinataire a refusé le message',
+  },
+  {
+    key: 'demo_no_show',
+    label: 'Rendez-vous manqués',
+    help: 'Ni une démonstration tenue, ni une absence de démonstration',
+  },
+  {
+    key: 'opted_out',
+    label: 'Oppositions reçues',
+    help: 'Demandes de ne plus être contacté',
+  },
+]
 
 const DELAY_LABELS: Record<string, string> = {
   contacted_to_replied: 'Contact → réponse',
@@ -243,10 +271,14 @@ export function PerformancePage() {
     [report, cohort],
   )
 
-  const sources = report?.by_source ?? {}
-  const declared = sources.declared ?? 0
-  const observed = sources.observed ?? 0
-  const totalEvents = declared + observed
+  // Les étapes que le système constate lui-même, et celles qui n'existent
+  // que parce que quelqu'un les a saisies. Dire « 5 % de saisie » serait
+  // exact et trompeur : le volume des envois écrase tout le reste.
+  const stageSources = report?.by_stage_source ?? {}
+  const observedStages = STAGES.filter((stage) => stageSources[stage.key]?.observed)
+  const declaredStages = STAGES.filter(
+    (stage) => stageSources[stage.key] && !stageSources[stage.key]!.observed,
+  )
 
   if (!can('lecteur')) {
     return (
@@ -356,12 +388,21 @@ export function PerformancePage() {
         />
       ) : (
         <>
-          {totalEvents > 0 ? (
-            <Banner tone={declared > observed ? 'warn' : 'info'}>
-              <strong>Origine des chiffres : </strong>
-              {observed} événement(s) constaté(s) par le système, {declared} saisi(s) par une
-              personne. Un fait non saisi reste invisible : l’absence d’une démonstration dans ce
-              tableau ne prouve pas qu’elle n’a pas eu lieu.
+          {observedStages.length + declaredStages.length > 0 ? (
+            <Banner tone={declaredStages.length ? 'warn' : 'info'}>
+              <strong>Origine des chiffres — </strong>
+              {observedStages.length ? (
+                <>
+                  constaté par le système :{' '}
+                  {observedStages.map((stage) => stage.label.toLowerCase()).join(', ')}.{' '}
+                </>
+              ) : null}
+              {declaredStages.length ? (
+                <>
+                  Repose sur une saisie :{' '}
+                  {declaredStages.map((stage) => stage.label.toLowerCase()).join(', ')}.
+                </>
+              ) : null}
             </Banner>
           ) : null}
 
@@ -498,19 +539,18 @@ export function PerformancePage() {
             <h3 style={{ marginTop: 0 }}>Ce qui n’apparaît pas dans l’entonnoir</h3>
             <p className="muted" style={{ marginTop: 0 }}>
               Un rendez-vous manqué n’est ni une démonstration tenue ni une absence de
-              démonstration. Compté à part, il reste visible.
+              démonstration ; un rejet reste un envoi parti. Comptés à part, ils restent
+              visibles sans déformer l’entonnoir.
             </p>
             <div className="grid cols-4">
-              <Stat
-                label="Rendez-vous manqués"
-                value={report.side_facts.demo_no_show ?? 0}
-                unavailableReason="Aucun relevé"
-              />
-              <Stat
-                label="Oppositions reçues"
-                value={report.side_facts.opted_out ?? 0}
-                unavailableReason="Aucune"
-              />
+              {SIDE_FACTS.map((fact) => (
+                <Stat
+                  key={fact.key}
+                  label={fact.label}
+                  value={report.side_facts[fact.key] ?? 0}
+                  unavailableReason={fact.help}
+                />
+              ))}
               <Stat
                 label="Envois bloqués"
                 value={Object.values(report.blocked_by_reason).reduce((a, b) => a + b, 0)}

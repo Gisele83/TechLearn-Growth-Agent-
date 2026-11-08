@@ -116,6 +116,21 @@ def main() -> int:
                     OutreachEventType.SENT, envoi, EventSource.OBSERVED,
                     {"provider": "sendgrid", "simulated": False},
                 )
+                # Ce que le fournisseur d'expédition constate lui-même : la
+                # remise, ou le rejet. Les seuls faits du parcours après
+                # l'envoi que personne ne saisit à la main.
+                if rang % 17 == 4:
+                    evenement(
+                        session, produit, campagne, prospect,
+                        OutreachEventType.BOUNCED, envoi + timedelta(minutes=3),
+                        EventSource.OBSERVED, {"provider": "sendgrid", "reason_code": "bounce"},
+                    )
+                else:
+                    evenement(
+                        session, produit, campagne, prospect,
+                        OutreachEventType.DELIVERED, envoi + timedelta(minutes=2),
+                        EventSource.OBSERVED, {"provider": "sendgrid", "reason_code": "delivered"},
+                    )
                 if rang < reponses:
                     repondu = envoi + timedelta(days=alea.randint(1, 9))
                     evenement(

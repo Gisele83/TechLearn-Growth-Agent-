@@ -258,6 +258,12 @@ export interface CohortReport {
   cohorts: CohortRow[]
   /** Totaux par origine : `observed` / `declared`. */
   by_source: Record<string, number>
+  /**
+   * Origine **par étape**. Le total par origine rassure à tort : le volume
+   * des envois le domine, et il affiche un excellent chiffre alors que
+   * toute la conversion repose sur une saisie.
+   */
+  by_stage_source: Record<string, { observed: number; declared: number }>
   /** Faits comptés à côté de l'entonnoir : rendez-vous manqués, oppositions. */
   side_facts: Record<string, number>
   median_days: Record<string, number | null>

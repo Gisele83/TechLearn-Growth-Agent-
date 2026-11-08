@@ -1,8 +1,11 @@
 /**
  * Captures de la page « Performance commerciale ».
  *
- * À lancer depuis `apps/web` (c'est là que Playwright est installé), avec
- * l'API et l'interface démarrées sur leurs ports habituels :
+ * Ce fichier vit sous `apps/web/` et non sous `scripts/` : Node résout
+ * `playwright` à partir du répertoire du script, pas du répertoire courant.
+ * Placé ailleurs, il échoue en ERR_MODULE_NOT_FOUND quoi qu'on fasse.
+ *
+ * À lancer avec l'API et l'interface démarrées sur leurs ports habituels :
  *
  *     scripts/demo-captures.sh
  *

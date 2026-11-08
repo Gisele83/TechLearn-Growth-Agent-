@@ -202,6 +202,57 @@ Ce n'est pas le cas aujourd'hui.
 Aucune donnée sensible au sens de l'article 9 n'est collectée. Aucune donnée
 d'élève, de parent ou de personnel. Aucune donnée d'exploitation industrielle.
 
+### Le suivi d'ouverture n'est pas activé, et c'est une décision
+
+Le webhook d'événements de SendGrid sait remonter les ouvertures de message.
+Growth Agent ne les absorbe pas : `GA_SENDGRID_TRACK_OPENS` vaut `false`.
+
+Ce n'est pas une précaution de façade. Une ouverture ne se mesure qu'en
+insérant dans le message un pixel qui appelle un serveur tiers à
+l'affichage. C'est un traitement du comportement du destinataire, distinct
+de l'expédition elle-même : il mesure ce que la personne fait du message,
+pas ce que nous en avons fait. Un projet qui refuse de charger une ressource
+tierce sur sa page de désinscription ne peut pas poser un mouchard dans ses
+messages sans le dire.
+
+Les ouvertures qui arriveraient malgré tout sont **comptées sans être
+absorbées** (`opens_discarded` dans le compte rendu d'absorption), pour que
+l'écart entre ce qui est reçu et ce qui est conservé se voie au lieu de se
+deviner.
+
+**Arbitrage ouvert.** Activer ce suivi donnerait le seul signal
+d'engagement que le système constate lui-même — tout le reste du parcours
+après l'envoi repose sur une saisie. Le coût est le pixel. La décision
+appartient à la direction, et appelle une mention dans les messages.
+
+### Ce que le fournisseur d'expédition nous apprend, et ce qu'on en garde
+
+Le webhook d'événements est authentifié par **signature ECDSA** (clé
+publique affichée dans la console SendGrid) et par une **fenêtre temporelle
+de dix minutes** : une requête authentique interceptée reste authentique, et
+sans borne d'âge elle se rejoue. Sans clé configurée, la route refuse tout.
+
+Trois choses n'entrent jamais en base :
+
+* **le motif en clair.** SendGrid renvoie des phrases du type
+  « 550 5.1.1 &lt;direction@college.example.org&gt; user unknown » :
+  l'adresse y figure. Seul un code est conservé, conformément à la liste
+  blanche de la politique de rétention ;
+* **l'adresse portée par la charge.** Une opposition est inscrite à partir
+  du prospect que nous avons en base, jamais de l'adresse envoyée par le
+  webhook. La signature authentifie l'expéditeur, pas le contenu d'un compte
+  SendGrid compromis : sans cette règle, une charge forgée ferait inscrire
+  n'importe quelle adresse ;
+* **les événements qui ne sont pas de nous.** Le même compte SendGrid sert
+  au transactionnel de Maintrix. Un événement dont l'identifiant de message
+  ne correspond à aucun envoi de Growth Agent est écarté, et compté comme
+  tel.
+
+Deux événements valent opposition immédiate : un signalement en indésirable
+(`spamreport`) et un rejet définitif (`bounce` de type `bounce`). Un refus
+temporaire n'en vaut pas : une boîte pleine se vide, et retirer une
+organisation de la prospection pour cela serait une perte sèche.
+
 ### Une opposition arrête aussi le téléphone
 
 Le contrôle d'opposition portait sur l'envoi. Il ne portait pas sur les
